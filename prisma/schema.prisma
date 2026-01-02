@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AircraftData {
+  id           Int      @id @default(autoincrement())
+  icao         String
+  flight       String?
+  altitude     Int?
+  groundSpeed  Int?
+  track        Float?
+  lat          Float?
+  lon          Float?
+  verticalRate Int?
+  inEmergency  Boolean  @default(false)
+  isOnGround   Boolean  @default(false)
+  updatedAt    DateTime
+}
