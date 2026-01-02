@@ -24,6 +24,7 @@ export const config = {
   },
   server: {
     port: getEnvVarAsNumber('APP_PORT'),
+    authPassword: process.env['APP_AUTH_PASSWORD'] || null,
   },
   state: {
     maxAgeMs: getEnvVarAsNumber('STATE_MAX_AGE_MS'),

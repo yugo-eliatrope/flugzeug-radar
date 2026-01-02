@@ -1,4 +1,4 @@
-import { WebSocketServer } from 'ws';
+import { WebSocketServer } from './ws-server';
 
 import { config } from './config';
 import { EventBus } from './event-bus';
@@ -7,10 +7,12 @@ import { parseSBSLine } from './parser';
 import { SBSClient } from './sbs-client';
 import { AircraftState } from './state';
 import { DatabaseManager } from './database-manager';
-import { AircraftData } from '@prisma/client';
 import { AircraftDataRepeater } from './aircraft-data-repeater';
-import { formAircraftHistoryStore } from './aircraft-history';
-import fs from 'fs';
+import { readAllFilesInDir } from './fs';
+import { HttpServer } from './http-server';
+import { stat } from 'fs';
+
+const staticFilesPromise = readAllFilesInDir('./public');
 
 const AIRCRAFT_DATA_SAVE_INTERVAL_MS = 10_000;
 
@@ -34,52 +36,73 @@ const startUp = async () => {
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
 
+  const httpServer = new HttpServer(
+    { port: config.server.port, authPassword: config.server.authPassword },
+    logger.child('HTTPServer'),
+    await staticFilesPromise
+  );
+
+  const wsServer = new WebSocketServer(
+    database,
+    logger.child('WebSocketServer'),
+    httpServer.isAuthenticated
+  );
+
+  httpServer.server.on('upgrade', (request, socket, head) => {
+    wsServer.handleUpgrade(request, socket, head);
+  });
+
+  httpServer.start();
+
   const sbs = repeatParam
     ? new AircraftDataRepeater(repeatParam, database, logger.child('Repeater'), eventBus)
     : new SBSClient(config.sbs, logger.child('SBSClient'), eventBus);
   const state = new AircraftState(config.state.maxAgeMs, logger.child('State'), eventBus);
 
-  const wss = new WebSocketServer(config.server);
-  logger.info('[WS] WebSocket running at ws://localhost:4000');
+  // setInterval(() => {
+  //   const data = JSON.stringify({ type: 'aircrafts', payload: state.getAll() });
 
-  setInterval(() => {
-    const data = JSON.stringify({ type: 'aircrafts', payload: state.getAll() });
+  //   for (const client of wss.clients) {
+  //     if (client.readyState === 1) {
+  //       client.send(data);
+  //     }
+  //   }
 
-    for (const client of wss.clients) {
-      if (client.readyState === 1) {
-        client.send(data);
-      }
-    }
+  //   state.cleanup();
+  // }, 1000);
 
-    state.cleanup();
-  }, 1000);
+  // setInterval(async () => {
+  //   if (wss.clients.size === 0) {
+  //     return;
+  //   }
+  // const rawData = await database.getAllAircraftData();
+  // const paths = { type: 'history', payload: formAircraftHistoryStore(rawData.reverse()) };
+  //   const data = JSON.stringify(paths);
 
-  setInterval(async () => {
-    if (wss.clients.size === 0) {
-      return;
-    }
-    const rawData = await database.getAllAircraftData();
-    const paths = { type: 'history', payload: formAircraftHistoryStore(rawData.reverse()) };
-    const data = JSON.stringify(paths);
+  //   for (const client of wss.clients) {
+  //     if (client.readyState === 1) {
+  //       client.send(data);
+  //     }
+  //   }
+  // }, 10_000);
 
-    for (const client of wss.clients) {
-      if (client.readyState === 1) {
-        client.send(data);
-      }
-    }
-  }, 10_000);
-
-  wss.on('connection', async (ws) => {
-    const rawData = await database.getAllAircraftData();
-    const paths = { type: 'history', payload: formAircraftHistoryStore(rawData.reverse()) };
-    const data = JSON.stringify(paths);
-    ws.send(data);
-  });
+  // wss.on('connection', async (ws) => {
+  //   const rawData = await database.getAllAircraftData();
+  //   const paths = { type: 'history', payload: formAircraftHistoryStore(rawData.reverse()) };
+  //   const data = JSON.stringify(paths);
+  //   ws.send(data);
+  // });
 
   eventBus.on('readsb:data', (line) => {
     logger.info(`Incoming line: '${line}'`);
     const parsed = parseSBSLine(line);
     state.update(parsed);
+    console.log('Broadcasting to WS clients');
+    wsServer.broadcastMessage({
+      type: 'aircrafts',
+      payload: state.getAll(),
+    });
+    state.cleanup();
   });
 
   eventBus.on('repeater:data', (data) => {
@@ -89,6 +112,12 @@ const startUp = async () => {
       transmissionType: 0,
       generatedAt: data.updatedAt,
     });
+    console.log('Broadcasting to WS clients');
+    wsServer.broadcastMessage({
+      type: 'aircrafts',
+      payload: state.getAll(),
+    });
+    state.cleanup();
   });
 
   eventBus.on('state:updated', async (aircraft) => {

@@ -7,8 +7,8 @@
   <title>ADS-B Live — Map</title>
 
   <!-- Leaflet CSS + JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <link rel="stylesheet" href="/public/leaflet.css" crossorigin="" />
+  <script src="/public/leaflet.js" crossorigin=""></script>
 
   <style>
     html,
@@ -119,7 +119,7 @@
 
     // Подключение к WebSocket (подставляет hostname текущей страницы)
     const wsUrl = (() => {
-      return `ws://localhost:4000`;
+      return `ws://localhost:4000/info`;
     })();
 
     let ws;

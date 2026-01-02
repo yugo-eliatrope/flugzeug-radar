@@ -6,7 +6,7 @@ const isLessThanFlightGap = (a: Date, b: Date) => Math.abs(a.getTime() - b.getTi
 
 type ICAO = string;
 
-type AircraftHistoryStore = Record<ICAO, FlightHistory[]>;
+export type AircraftHistoryStore = Record<ICAO, FlightHistory[]>;
 
 type FlightHistory = {
   flight: string;
