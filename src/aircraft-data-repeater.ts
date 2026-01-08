@@ -25,6 +25,10 @@ export class AircraftDataRepeater {
       .catch(this.logger.error);
   }
 
+  public stop() {
+    this.logger.info('Aircraft data repeater stopped');
+  }
+
   private emit(data: AircraftData[]) {
     let i = data.length - 1;
     const interval = setInterval(() => {

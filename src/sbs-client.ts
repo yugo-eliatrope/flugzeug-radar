@@ -45,4 +45,11 @@ export class SBSClient {
     this.socket.on('end', () => this.logger.info('Stream closed'));
     this.socket.on('error', (err) => this.logger.error(err));
   }
+
+  stop() {
+    if (!this.socket) return;
+    this.socket.end();
+    this.socket.destroy();
+    this.logger.info('SBS client stopped');
+  }
 }

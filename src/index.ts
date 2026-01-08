@@ -10,7 +10,6 @@ import { DatabaseManager } from './database-manager';
 import { AircraftDataRepeater } from './aircraft-data-repeater';
 import { readAllFilesInDir } from './fs';
 import { HttpServer } from './http-server';
-import { stat } from 'fs';
 
 const staticFilesPromise = readAllFilesInDir('./public');
 
@@ -39,6 +38,7 @@ const startUp = async () => {
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },
     logger.child('HTTPServer'),
+    database,
     await staticFilesPromise
   );
 
@@ -59,50 +59,16 @@ const startUp = async () => {
     : new SBSClient(config.sbs, logger.child('SBSClient'), eventBus);
   const state = new AircraftState(config.state.maxAgeMs, logger.child('State'), eventBus);
 
-  // setInterval(() => {
-  //   const data = JSON.stringify({ type: 'aircrafts', payload: state.getAll() });
+  const interval = setInterval(() => {
+    wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() })
+    state.cleanup();
+  }, 1000);
 
-  //   for (const client of wss.clients) {
-  //     if (client.readyState === 1) {
-  //       client.send(data);
-  //     }
-  //   }
-
-  //   state.cleanup();
-  // }, 1000);
-
-  // setInterval(async () => {
-  //   if (wss.clients.size === 0) {
-  //     return;
-  //   }
-  // const rawData = await database.getAllAircraftData();
-  // const paths = { type: 'history', payload: formAircraftHistoryStore(rawData.reverse()) };
-  //   const data = JSON.stringify(paths);
-
-  //   for (const client of wss.clients) {
-  //     if (client.readyState === 1) {
-  //       client.send(data);
-  //     }
-  //   }
-  // }, 10_000);
-
-  // wss.on('connection', async (ws) => {
-  //   const rawData = await database.getAllAircraftData();
-  //   const paths = { type: 'history', payload: formAircraftHistoryStore(rawData.reverse()) };
-  //   const data = JSON.stringify(paths);
-  //   ws.send(data);
-  // });
+  interval.unref();
 
   eventBus.on('readsb:data', (line) => {
-    logger.info(`Incoming line: '${line}'`);
     const parsed = parseSBSLine(line);
     state.update(parsed);
-    console.log('Broadcasting to WS clients');
-    wsServer.broadcastMessage({
-      type: 'aircrafts',
-      payload: state.getAll(),
-    });
-    state.cleanup();
   });
 
   eventBus.on('repeater:data', (data) => {
@@ -112,12 +78,6 @@ const startUp = async () => {
       transmissionType: 0,
       generatedAt: data.updatedAt,
     });
-    console.log('Broadcasting to WS clients');
-    wsServer.broadcastMessage({
-      type: 'aircrafts',
-      payload: state.getAll(),
-    });
-    state.cleanup();
   });
 
   eventBus.on('state:updated', async (aircraft) => {
@@ -130,6 +90,19 @@ const startUp = async () => {
   });
 
   sbs.start();
+
+  const shutdown = async () => {
+    logger.info('Shutting down...');
+    sbs.stop();
+    await httpServer.stop();
+    wsServer.close();
+    await database.disconnect();
+    logger.info('Shut down complete');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 };
 
 startUp();

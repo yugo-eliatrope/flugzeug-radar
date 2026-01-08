@@ -2,8 +2,13 @@ import crypto from 'crypto';
 import http from 'http';
 import path from 'path';
 
-import { EventBus } from './event-bus';
 import { ILogger } from './logger';
+import { AircraftData } from './domain';
+import { formAircraftHistoryStore } from './aircraft-history';
+
+interface IStateProvider {
+  getAircraftData: (params: { icao: string }) => Promise<AircraftData[]>;
+}
 
 type Config = {
   port: number;
@@ -17,6 +22,7 @@ export class HttpServer {
   constructor(
     private readonly config: Config,
     private readonly logger: ILogger,
+    private readonly stateProvider: IStateProvider,
     private readonly staticFiles: Record<string, Buffer>
   ) {
     this.server = http.createServer(async (req, res) => {
@@ -96,6 +102,10 @@ export class HttpServer {
         this.handleAppRequest(res);
         break;
       }
+      case '/aircraft-data': {
+        this.handleAircraftDataRequest(req,res);
+        break;
+      }
       default: {
         this.handleStaticFileRequest(res, url.pathname);
         break;
@@ -154,6 +164,26 @@ export class HttpServer {
     res.statusCode = 200;
     res.write(this.staticFiles['public/app.html']);
     res.end();
+  };
+
+  private handleAircraftDataRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const url = new URL(`http://localhost${req.url}`);
+    const icao = url.searchParams.get('icao');
+    if (!icao) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'ICAO is required' }));
+      return;
+    }
+    const aircraftData = await this.stateProvider.getAircraftData({ icao });
+    if (!aircraftData) {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: 'Aircraft data not found' }));
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 200;
+    const history = formAircraftHistoryStore(aircraftData.reverse());
+    res.end(JSON.stringify(history));
   };
 
   private handleFaviconRequest = (res: http.ServerResponse) => {
