@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flugzeug Radar — Anmeldung</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+    :root {
+      --bg-primary: #0a0e14;
+      --bg-secondary: #12171f;
+      --bg-tertiary: #1a2029;
+      --accent: #00d9ff;
+      --accent-dim: rgba(0, 217, 255, 0.15);
+      --accent-glow: rgba(0, 217, 255, 0.4);
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --border: #30363d;
+      --success: #3fb950;
+      --danger: #f85149;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: 
+        radial-gradient(ellipse at 50% 0%, rgba(0, 217, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(0, 217, 255, 0.05) 0%, transparent 40%),
+        var(--bg-primary);
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      fill: var(--accent);
+      filter: drop-shadow(0 0 10px var(--accent-glow));
+    }
+
+    .logo-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 18px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 15px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:hover {
+      border-color: var(--accent);
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, var(--accent) 0%, #00a8cc 100%);
+      border: none;
+      border-radius: 10px;
+      color: var(--bg-primary);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px var(--accent-glow);
+    }
+
+    .submit-btn:active {
+      transform: translateY(0);
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .error-message {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      border-radius: 8px;
+      color: var(--danger);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .error-message.visible {
+      display: flex;
+    }
+
+    .error-message svg {
+      flex-shrink: 0;
+    }
+
+    .footer-text {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Loading state */
+    .submit-btn.loading {
+      position: relative;
+      color: transparent;
+    }
+
+    .submit-btn.loading::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      top: 50%;
+      left: 50%;
+      margin: -10px 0 0 -10px;
+      border: 2px solid var(--bg-primary);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Shake animation for error */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+
+    .login-card.shake {
+      animation: shake 0.4s ease-out;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="login-container">
+    <div class="login-card" id="login-card">
+      <div class="logo">
+        <svg class="logo-icon" viewBox="0 -0.5 25 25" xmlns="http://www.w3.org/2000/svg">
+          <path d="m24.794 16.522-.281-2.748-10.191-5.131s.091-1.742 0-4.31c-.109-1.68-.786-3.184-1.839-4.339l.005.006h-.182c-1.048 1.15-1.726 2.653-1.834 4.312l-.001.021c-.091 2.567 0 4.31 0 4.31l-10.19 5.131-.281 2.748 6.889-2.074 3.491-.582c-.02.361-.031.783-.031 1.208 0 2.051.266 4.041.764 5.935l-.036-.162-2.728 1.095v1.798l3.52-.8c.155.312.3.566.456.812l-.021-.035v.282c.032-.046.062-.096.093-.143.032.046.061.096.094.143v-.282c.135-.21.28-.464.412-.726l.023-.051 3.52.8v-1.798l-2.728-1.095c.463-1.733.728-3.723.728-5.774 0-.425-.011-.847-.034-1.266l.003.058 3.492.582 6.888 2.074z"/>
+        </svg>
+        <span class="logo-text">Flugzeug Radar</span>
+      </div>
+
+      <form id="login-form">
+        <div class="error-message" id="error-message">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span id="error-text">Falsches Passwort</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Passwort</label>
+          <input 
+            type="password" 
+            id="password" 
+            class="form-input" 
+            placeholder="Passwort eingeben..."
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <button type="submit" class="submit-btn" id="submit-btn">
+          Anmelden
+        </button>
+      </form>
+
+      <div class="footer-text">
+        ADS-B Live Radar
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const passwordInput = document.getElementById('password');
+    const submitBtn = document.getElementById('submit-btn');
+    const errorMessage = document.getElementById('error-message');
+    const errorText = document.getElementById('error-text');
+    const loginCard = document.getElementById('login-card');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const password = passwordInput.value;
+      if (!password) return;
+
+      // Hide error, show loading
+      errorMessage.classList.remove('visible');
+      submitBtn.classList.add('loading');
+      submitBtn.disabled = true;
+
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Redirect to app
+          window.location.href = '/app';
+        } else {
+          // Show error
+          errorText.textContent = data.error || 'Falsches Passwort';
+          errorMessage.classList.add('visible');
+          
+          // Shake animation
+          loginCard.classList.add('shake');
+          setTimeout(() => loginCard.classList.remove('shake'), 400);
+          
+          // Focus password field
+          passwordInput.select();
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        errorText.textContent = 'Verbindungsfehler';
+        errorMessage.classList.add('visible');
+        
+        loginCard.classList.add('shake');
+        setTimeout(() => loginCard.classList.remove('shake'), 400);
+      } finally {
+        submitBtn.classList.remove('loading');
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Focus password field on load
+    passwordInput.focus();
+
+    // Remove error on input
+    passwordInput.addEventListener('input', () => {
+      errorMessage.classList.remove('visible');
+    });
+  </script>
+</body>
+
+</html>
+

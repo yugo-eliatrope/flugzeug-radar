@@ -1,82 +1,146 @@
 <!doctype html>
-<html lang="ru">
+<html lang="de">
 
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ADS-B Live — Map</title>
+  <title>Flugzeug Radar — ADS-B Live</title>
 
   <!-- Leaflet CSS + JS -->
   <link rel="stylesheet" href="/public/leaflet.css" crossorigin="" />
   <script src="/public/leaflet.js" crossorigin=""></script>
 
   <style>
-    html,
-    body {
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+    :root {
+      --bg-primary: #0a0e14;
+      --bg-secondary: #12171f;
+      --bg-tertiary: #1a2029;
+      --accent: #00d9ff;
+      --accent-dim: rgba(0, 217, 255, 0.15);
+      --accent-glow: rgba(0, 217, 255, 0.4);
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --border: #30363d;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --panel-width: 320px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
       height: 100%;
       margin: 0;
-      font-family: system-ui, Segoe UI, Roboto, Arial;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    #app-container {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
     }
 
     #map {
-      height: 80vh;
-      width: 100%;
+      flex: 1;
+      height: 100%;
     }
 
-    .legend {
-      position: absolute;
-      left: 10px;
-      bottom: 10px;
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: 6px;
-      padding: 8px 10px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-      font-size: 13px;
+    /* Leaflet popup customization */
+    .leaflet-popup-content-wrapper {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     }
 
-    .aircraft-popup {
-      font-size: 13px;
-      line-height: 1.25;
+    .leaflet-popup-tip {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
     }
 
-    /* Simple CSS for rotated SVG inside DivIcon */
     .plane-icon {
       width: 28px;
       height: 28px;
       display: inline-block;
       transform-origin: center;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    }
+
+    .plane-icon svg {
+      fill: #00d9ff;
+      transition: fill 0.2s;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+    }
+
+    .plane-icon.selected svg {
+      fill: #ff6b35;
+      filter: drop-shadow(0 0 8px rgba(255, 107, 53, 0.6));
     }
 
     .plane-label {
-      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
       font-weight: 600;
-      color: #111;
-      text-shadow: 0 1px 0 #fff;
-      background: rgba(255, 255, 255, 0.8);
-      padding: 1px 4px;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      padding: 2px 6px;
       border-radius: 4px;
       margin-top: 2px;
       display: inline-block;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     }
   </style>
 </head>
 
 <body>
+  <div id="app-container">
+    <side-panel></side-panel>
   <div id="map"></div>
-  <div class="legend" id="legend">WS: <span id="ws-status">connecting…</span></div>
-  <div>
-    <h3>History</h3>
-    <div id="history-btns"></div>
   </div>
 
   <script>
-    // Настройки
-    const WS_PORT = 4000;
-    const WS_PATH = '/'; // если нужно менять — укажи здесь
-    const UPDATE_INTERVAL_MS = 1000; // как часто сервер шлёт обновления (в проекте 1s)
-    const STALE_MS = 30_000; // считать борты устаревшими, если не обновлялись
+    // ============================================
+    // Observable Value - реактивное значение
+    // ============================================
+    class ObservableValue {
+      constructor(initialValue = null) {
+        this._value = initialValue;
+        this._listeners = new Set();
+      }
 
-    // Observable класс для управления событиями
+      get value() {
+        return this._value;
+      }
+
+      set value(newValue) {
+        const oldValue = this._value;
+        this._value = newValue;
+        if (oldValue !== newValue) {
+          this._listeners.forEach(cb => cb(newValue, oldValue));
+        }
+      }
+
+      subscribe(callback) {
+        this._listeners.add(callback);
+        callback(this._value, null);
+        return () => this._listeners.delete(callback);
+      }
+    }
+
+    // ============================================
+    // Event Bus
+    // ============================================
     class Observable {
       constructor() {
         this.listeners = new Map();
@@ -93,138 +157,797 @@
         const callbacks = this.listeners.get(event);
         if (callbacks) {
           const index = callbacks.indexOf(callback);
-          if (index > -1) {
-            callbacks.splice(index, 1);
-          }
+          if (index > -1) callbacks.splice(index, 1);
         }
       }
 
       emit(event, data) {
         const callbacks = this.listeners.get(event);
-        if (callbacks) {
-          callbacks.forEach((callback) => callback(data));
-        }
+        if (callbacks) callbacks.forEach(cb => cb(data));
       }
     }
 
-    // Инициализация карты
-    const map = L.map('map').setView([52.52, 13.405], 7); // по умолчанию — Берлин
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '&copy; OpenStreetMap contributors',
+    // ============================================
+    // Global State
+    // ============================================
+    const WS_PORT = 4000;
+    const UPDATE_INTERVAL_MS = 1000;
+    const STALE_MS = 30_000;
+
+    const eventBus = new Observable();
+    const selectedAircraft = new ObservableValue(null);
+    const wsConnected = new ObservableValue(false);
+    const aircraftHistory = new Map(); // icao -> FlightHistory[]
+    const planes = new Map(); // icao -> { marker, lastUpdated, record }
+    const aircraftPhotosCache = new Map(); // icao -> { photo, photographer, link } | null
+    const colors = ['#00d9ff', '#3fb950', '#d29922'];
+
+    // ============================================
+    // Side Panel Web Component
+    // ============================================
+    class SidePanel extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+        this.currentDisplayedIcao = null; // Track which ICAO is currently displayed
+      }
+
+      connectedCallback() {
+        this.render();
+        this.setupSubscriptions();
+      }
+
+      render() {
+        this.shadowRoot.innerHTML = `
+          <style>
+            :host {
+              display: flex;
+              flex-direction: column;
+              width: 320px;
+              height: 100%;
+              background: linear-gradient(180deg, #12171f 0%, #0a0e14 100%);
+              border-right: 1px solid #30363d;
+              flex-shrink: 0;
+            }
+
+            .panel-content {
+              flex: 1;
+              overflow-y: auto;
+              padding: 20px;
+            }
+
+            .panel-footer {
+              flex-shrink: 0;
+            }
+
+            .logo {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 14px;
+              font-weight: 600;
+              color: #00d9ff;
+              text-transform: uppercase;
+              letter-spacing: 2px;
+              margin-bottom: 24px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+            }
+
+            .logo-icon {
+              width: 24px;
+              height: 24px;
+              fill: #00d9ff;
+            }
+
+            .section {
+              margin-bottom: 24px;
+            }
+
+            .section-title {
+              font-size: 11px;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              color: #6e7681;
+              margin-bottom: 12px;
+            }
+
+            /* Connection Status (in footer) */
+            .connection-status {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 8px;
+              padding: 10px 16px;
+              background: rgba(0, 0, 0, 0.3);
+              border-top: 1px solid #30363d;
+            }
+
+            .status-dot {
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              background: #f85149;
+              box-shadow: 0 0 6px #f85149;
+              transition: all 0.3s;
+            }
+
+            .status-dot.connected {
+              background: #3fb950;
+              box-shadow: 0 0 6px #3fb950;
+            }
+
+            .status-text {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 11px;
+              color: #6e7681;
+            }
+
+            /* Select */
+            .select-wrapper {
+              position: relative;
+            }
+
+            select {
+              width: 100%;
+              padding: 12px 40px 12px 16px;
+              background: #1a2029;
+              border: 1px solid #30363d;
+              border-radius: 8px;
+              color: #e6edf3;
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 13px;
+              cursor: pointer;
+              appearance: none;
+              transition: border-color 0.2s, box-shadow 0.2s;
+            }
+
+            select:hover {
+              border-color: #00d9ff;
+            }
+
+            select:focus {
+              outline: none;
+              border-color: #00d9ff;
+              box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.15);
+            }
+
+            select option {
+              background: #1a2029;
+              color: #e6edf3;
+            }
+
+            .select-arrow {
+              position: absolute;
+              right: 14px;
+              top: 50%;
+              transform: translateY(-50%);
+              pointer-events: none;
+              color: #6e7681;
+            }
+
+            /* Aircraft Info Card */
+            .aircraft-card {
+              background: #1a2029;
+              border: 1px solid #30363d;
+              border-radius: 12px;
+              overflow: hidden;
+            }
+
+            .aircraft-card.empty {
+              padding: 32px 20px;
+              text-align: center;
+              color: #6e7681;
+              font-size: 13px;
+            }
+
+            .card-header {
+              background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(0, 217, 255, 0.02) 100%);
+              padding: 16px 20px;
+              border-bottom: 1px solid #30363d;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+
+            .card-icao {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 18px;
+              font-weight: 600;
+              color: #00d9ff;
+            }
+
+            .card-flight {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 14px;
+              color: #8b949e;
+            }
+
+            .reset-btn {
+              width: 32px;
+              height: 32px;
+              background: transparent;
+              border: 1px solid #30363d;
+              border-radius: 6px;
+              color: #8b949e;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: all 0.2s;
+            }
+
+            .reset-btn:hover {
+              background: rgba(248, 81, 73, 0.1);
+              border-color: #f85149;
+              color: #f85149;
+            }
+
+            .focus-btn {
+              width: 32px;
+              height: 32px;
+              background: transparent;
+              border: 1px solid #30363d;
+              border-radius: 6px;
+              color: #8b949e;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: all 0.2s;
+              margin-left: 8px;
+            }
+
+            .focus-btn:hover {
+              background: rgba(0, 217, 255, 0.1);
+              border-color: #00d9ff;
+              color: #00d9ff;
+            }
+
+            .focus-btn:disabled {
+              opacity: 0.4;
+              cursor: not-allowed;
+            }
+
+            .focus-btn:disabled:hover {
+              background: transparent;
+              border-color: #30363d;
+              color: #8b949e;
+            }
+
+            .card-body {
+              padding: 16px 20px;
+            }
+
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 8px 0;
+              border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            }
+
+            .info-row:last-child {
+              border-bottom: none;
+            }
+
+            .info-label {
+              font-size: 12px;
+              color: #6e7681;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+
+            .info-value {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 13px;
+              color: #e6edf3;
+            }
+
+            .info-value.highlight {
+              color: #00d9ff;
+            }
+
+            /* Aircraft Photo */
+            .aircraft-photo {
+              position: relative;
+              width: 100%;
+              aspect-ratio: 16 / 10;
+              background: #0a0e14;
+              overflow: hidden;
+            }
+
+            .aircraft-photo img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              transition: opacity 0.3s;
+            }
+
+            .aircraft-photo.loading::after {
+              content: '';
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              width: 24px;
+              height: 24px;
+              margin: -12px 0 0 -12px;
+              border: 2px solid #30363d;
+              border-top-color: #00d9ff;
+              border-radius: 50%;
+              animation: spin 0.8s linear infinite;
+            }
+
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+
+            .aircraft-photo .no-photo {
+              position: absolute;
+              inset: 0;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              color: #6e7681;
+              font-size: 12px;
+              gap: 8px;
+            }
+
+            .aircraft-photo .no-photo svg {
+              width: 32px;
+              height: 32px;
+              opacity: 0.5;
+            }
+
+            .photo-credit {
+              font-size: 10px;
+              color: #6e7681;
+              padding: 6px 12px;
+              background: rgba(0, 0, 0, 0.3);
+              border-bottom: 1px solid #30363d;
+            }
+
+            .photo-credit a {
+              color: #00d9ff;
+              text-decoration: none;
+            }
+
+            .photo-credit a:hover {
+              text-decoration: underline;
+            }
+
+            /* Stats footer */
+            .stats {
+              margin-top: auto;
+              padding: 16px 20px;
+              background: #0a0e14;
+              border-top: 1px solid #30363d;
+              display: flex;
+              justify-content: space-between;
+            }
+
+            .stat {
+              text-align: center;
+            }
+
+            .stat-value {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 20px;
+              font-weight: 600;
+              color: #00d9ff;
+            }
+
+            .stat-label {
+              font-size: 10px;
+              color: #6e7681;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              margin-top: 4px;
+            }
+
+            /* Scrollbar */
+            .panel-content::-webkit-scrollbar {
+              width: 6px;
+            }
+
+            .panel-content::-webkit-scrollbar-track {
+              background: transparent;
+            }
+
+            .panel-content::-webkit-scrollbar-thumb {
+              background: #30363d;
+              border-radius: 3px;
+            }
+
+            .panel-content::-webkit-scrollbar-thumb:hover {
+              background: #484f58;
+            }
+          </style>
+
+          <div class="panel-content">
+            <div class="logo">
+              <svg class="logo-icon" viewBox="0 -0.5 25 25" xmlns="http://www.w3.org/2000/svg">
+                <path d="m24.794 16.522-.281-2.748-10.191-5.131s.091-1.742 0-4.31c-.109-1.68-.786-3.184-1.839-4.339l.005.006h-.182c-1.048 1.15-1.726 2.653-1.834 4.312l-.001.021c-.091 2.567 0 4.31 0 4.31l-10.19 5.131-.281 2.748 6.889-2.074 3.491-.582c-.02.361-.031.783-.031 1.208 0 2.051.266 4.041.764 5.935l-.036-.162-2.728 1.095v1.798l3.52-.8c.155.312.3.566.456.812l-.021-.035v.282c.032-.046.062-.096.093-.143.032.046.061.096.094.143v-.282c.135-.21.28-.464.412-.726l.023-.051 3.52.8v-1.798l-2.728-1.095c.463-1.733.728-3.723.728-5.774 0-.425-.011-.847-.034-1.266l.003.058 3.492.582 6.888 2.074z"/>
+              </svg>
+              Flugzeug Radar
+            </div>
+
+            <div class="section">
+              <div class="section-title">Flugzeug auswählen</div>
+              <div class="select-wrapper">
+                <select id="icao-select">
+                  <option value="">— ICAO wählen —</option>
+                </select>
+                <span class="select-arrow">▼</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Flugzeugdaten</div>
+              <div class="aircraft-card empty" id="aircraft-card">
+                Wählen Sie ein Flugzeug aus
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-footer">
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-value" id="total-aircraft">0</div>
+                <div class="stat-label">Live</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value" id="total-history">0</div>
+                <div class="stat-label">Im Verlauf</div>
+              </div>
+            </div>
+            <div class="connection-status">
+              <div class="status-dot" id="status-dot"></div>
+              <span class="status-text" id="status-text">Verbinden...</span>
+            </div>
+          </div>
+        `;
+
+        this.icaoSelect = this.shadowRoot.getElementById('icao-select');
+        this.aircraftCard = this.shadowRoot.getElementById('aircraft-card');
+        this.statusDot = this.shadowRoot.getElementById('status-dot');
+        this.statusText = this.shadowRoot.getElementById('status-text');
+        this.totalAircraft = this.shadowRoot.getElementById('total-aircraft');
+        this.totalHistory = this.shadowRoot.getElementById('total-history');
+
+        this.icaoSelect.addEventListener('change', (e) => {
+          const value = e.target.value;
+          selectedAircraft.value = value || null;
+        });
+      }
+
+      setupSubscriptions() {
+        wsConnected.subscribe((connected) => {
+          this.statusDot.classList.toggle('connected', connected);
+          this.statusText.textContent = connected ? 'Verbunden' : 'Getrennt';
+        });
+
+        selectedAircraft.subscribe((icao) => {
+          this.icaoSelect.value = icao || '';
+          this.updateAircraftCard(icao);
+        });
+
+        eventBus.on('history', (payload) => {
+          // payload already processed by main handler, use aircraftHistory
+          // Use setTimeout to ensure main handler runs first
+          setTimeout(() => {
+            this.updateIcaoList();
+            this.totalHistory.textContent = aircraftHistory.size;
+          }, 0);
+        });
+
+        eventBus.on('aircrafts', () => {
+          this.totalAircraft.textContent = planes.size;
+          // Update card if selected aircraft data changed
+          if (selectedAircraft.value) {
+            this.updateAircraftCard(selectedAircraft.value);
+          }
+        });
+      }
+
+      updateIcaoList() {
+        const currentValue = this.icaoSelect.value;
+        const icaos = [...aircraftHistory.keys()].sort();
+
+        this.icaoSelect.innerHTML = '<option value="">— ICAO wählen —</option>';
+        for (const icao of icaos) {
+          const opt = document.createElement('option');
+          opt.value = icao;
+          opt.textContent = icao.toUpperCase();
+          this.icaoSelect.appendChild(opt);
+        }
+
+        if (currentValue && icaos.includes(currentValue)) {
+          this.icaoSelect.value = currentValue;
+        }
+      }
+
+      updateAircraftCard(icao) {
+        if (!icao) {
+          this.currentDisplayedIcao = null;
+          this.aircraftCard.className = 'aircraft-card empty';
+          this.aircraftCard.innerHTML = 'Wählen Sie ein Flugzeug aus';
+          return;
+        }
+
+        const planeData = planes.get(icao);
+        const rec = planeData?.record || {};
+        const icaoChanged = this.currentDisplayedIcao !== icao;
+
+        // Only rebuild full card if ICAO changed
+        if (icaoChanged) {
+          this.currentDisplayedIcao = icao;
+          this.aircraftCard.className = 'aircraft-card';
+          this.aircraftCard.innerHTML = `
+            <div class="aircraft-photo loading" id="aircraft-photo"></div>
+            <div class="photo-credit" id="photo-credit" style="display: none;"></div>
+            <div class="card-header">
+              <div>
+                <div class="card-icao">${escapeHtml(icao.toUpperCase())}</div>
+                <div class="card-flight" id="card-flight">${rec.flight?.trim() || '—'}</div>
+              </div>
+              <div style="display: flex; align-items: center;">
+                <button class="focus-btn" id="focus-btn" title="Auf Flugroute fokussieren">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </button>
+                <button class="reset-btn" id="reset-btn" title="Auswahl aufheben">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="info-row">
+                <span class="info-label">Höhe</span>
+                <span class="info-value" id="val-altitude">${rec.altitude != null ? `${Math.round(rec.altitude * 0.3048)} m / ${rec.altitude} ft` : '—'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Geschwindigkeit</span>
+                <span class="info-value" id="val-speed">${rec.groundSpeed != null ? `${Math.round(rec.groundSpeed * 1.852)} km/h` : '—'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Kurs</span>
+                <span class="info-value" id="val-track">${rec.track != null ? `${rec.track}°` : '—'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Position</span>
+                <span class="info-value highlight" id="val-position">${(rec.lat != null && rec.lon != null) ? `${rec.lat.toFixed(4)}, ${rec.lon.toFixed(4)}` : '—'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Steig-/Sinkrate</span>
+                <span class="info-value" id="val-vrate">${rec.verticalRate != null ? `${rec.verticalRate} ft/min` : '—'}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Am Boden</span>
+                <span class="info-value" id="val-ground">${rec.isOnGround != null ? (rec.isOnGround ? 'Ja' : 'Nein') : '—'}</span>
+              </div>
+            </div>
+          `;
+
+          const resetBtn = this.aircraftCard.querySelector('#reset-btn');
+          resetBtn.addEventListener('click', () => {
+            selectedAircraft.value = null;
+          });
+
+          const focusBtn = this.aircraftCard.querySelector('#focus-btn');
+          focusBtn.addEventListener('click', () => {
+            focusOnFlightHistory(icao);
+          });
+
+          // Fetch aircraft photo only when ICAO changes
+          this.renderAircraftPhoto(icao);
+        } else {
+          // Just update the values without rebuilding the entire card
+          const updateEl = (id, value) => {
+            const el = this.aircraftCard.querySelector(`#${id}`);
+            if (el) el.textContent = value;
+          };
+          
+          updateEl('card-flight', rec.flight?.trim() || '—');
+          updateEl('val-altitude', rec.altitude != null ? `${Math.round(rec.altitude * 0.3048)} m / ${rec.altitude} ft` : '—');
+          updateEl('val-speed', rec.groundSpeed != null ? `${Math.round(rec.groundSpeed * 1.852)} km/h` : '—');
+          updateEl('val-track', rec.track != null ? `${rec.track}°` : '—');
+          updateEl('val-position', (rec.lat != null && rec.lon != null) ? `${rec.lat.toFixed(4)}, ${rec.lon.toFixed(4)}` : '—');
+          updateEl('val-vrate', rec.verticalRate != null ? `${rec.verticalRate} ft/min` : '—');
+          updateEl('val-ground', rec.isOnGround != null ? (rec.isOnGround ? 'Ja' : 'Nein') : '—');
+        }
+      }
+
+      async renderAircraftPhoto(icao) {
+        const photoContainer = this.shadowRoot.getElementById('aircraft-photo');
+        const creditContainer = this.shadowRoot.getElementById('photo-credit');
+        
+        if (!photoContainer) return;
+
+        // Check cache first
+        if (aircraftPhotosCache.has(icao)) {
+          const cached = aircraftPhotosCache.get(icao);
+          photoContainer.classList.remove('loading');
+          
+          if (cached) {
+            photoContainer.innerHTML = `<img src="${cached.imgSrc}" alt="Flugzeugfoto" />`;
+            if (cached.photographer || cached.link) {
+              creditContainer.style.display = 'block';
+              creditContainer.innerHTML = `
+                📷 ${cached.photographer ? escapeHtml(cached.photographer) : 'Unbekannt'}
+                ${cached.link ? `· <a href="${cached.link}" target="_blank" rel="noopener">Auf Planespotters ansehen</a>` : ''}
+              `;
+            }
+          } else {
+            this.showNoPhoto(photoContainer);
+          }
+          return;
+        }
+
+        // Fetch from API
+        try {
+          const response = await fetch(`https://api.planespotters.net/pub/photos/hex/${icao.toLowerCase()}`);
+          const data = await response.json();
+
+          // Check if we're still displaying the same aircraft
+          if (this.currentDisplayedIcao !== icao) return;
+
+          photoContainer.classList.remove('loading');
+
+          if (data.photos && data.photos.length > 0) {
+            const photo = data.photos[0];
+            const imgSrc = photo.thumbnail_large?.src || photo.thumbnail?.src;
+            
+            if (imgSrc) {
+              // Cache the result
+              aircraftPhotosCache.set(icao, {
+                imgSrc,
+                photographer: photo.photographer,
+                link: photo.link
+              });
+
+              photoContainer.innerHTML = `<img src="${imgSrc}" alt="Flugzeugfoto" />`;
+              
+              if (photo.photographer || photo.link) {
+                creditContainer.style.display = 'block';
+                creditContainer.innerHTML = `
+                  📷 ${photo.photographer ? escapeHtml(photo.photographer) : 'Unbekannt'}
+                  ${photo.link ? `· <a href="${photo.link}" target="_blank" rel="noopener">Auf Planespotters ansehen</a>` : ''}
+                `;
+              }
+            } else {
+              aircraftPhotosCache.set(icao, null);
+              this.showNoPhoto(photoContainer);
+            }
+          } else {
+            aircraftPhotosCache.set(icao, null);
+            this.showNoPhoto(photoContainer);
+          }
+        } catch (error) {
+          console.error('Failed to fetch aircraft photo:', error);
+          // Check if we're still displaying the same aircraft
+          if (this.currentDisplayedIcao !== icao) return;
+          photoContainer.classList.remove('loading');
+          this.showNoPhoto(photoContainer);
+        }
+      }
+
+      showNoPhoto(container) {
+        container.innerHTML = `
+          <div class="no-photo">
+            <svg viewBox="0 -0.5 25 25" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+              <path d="m24.794 16.522-.281-2.748-10.191-5.131s.091-1.742 0-4.31c-.109-1.68-.786-3.184-1.839-4.339l.005.006h-.182c-1.048 1.15-1.726 2.653-1.834 4.312l-.001.021c-.091 2.567 0 4.31 0 4.31l-10.19 5.131-.281 2.748 6.889-2.074 3.491-.582c-.02.361-.031.783-.031 1.208 0 2.051.266 4.041.764 5.935l-.036-.162-2.728 1.095v1.798l3.52-.8c.155.312.3.566.456.812l-.021-.035v.282c.032-.046.062-.096.093-.143.032.046.061.096.094.143v-.282c.135-.21.28-.464.412-.726l.023-.051 3.52.8v-1.798l-2.728-1.095c.463-1.733.728-3.723.728-5.774 0-.425-.011-.847-.034-1.266l.003.058 3.492.582 6.888 2.074z"/>
+            </svg>
+            <span>Kein Foto verfügbar</span>
+          </div>
+        `;
+      }
+    }
+
+    customElements.define('side-panel', SidePanel);
+
+    // ============================================
+    // Utility Functions
+    // ============================================
+    const escapeHtml = (s) => {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    };
+
+    // ============================================
+    // Map Initialization
+    // ============================================
+    const map = L.map('map', {
+      zoomControl: false
+    }).setView([52.52, 13.405], 7);
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    // CARTO Dark - dark theme
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     }).addTo(map);
 
-    // Хранилище маркеров: hex -> { marker, lastUpdated }
-    const planes = new Map();
-
-    // Подключение к WebSocket (подставляет hostname текущей страницы)
-    const wsUrl = (() => {
-      return `ws://localhost:4000/info`;
-    })();
-
-    let ws;
-    const wsStatusEl = document.getElementById('ws-status');
-    const eventBus = new Observable();
-
-    const setWsStatus = (txt, color) => {
-      wsStatusEl.textContent = txt;
-      wsStatusEl.style.color = color || 'black';
-    };
-
-    const aircraftHistory = new Map();
-    const colors = ['red', 'blue', 'green'];
-
-    // Экранируем простые HTML-символы для flight
-    const escapeHtml = (s) => {
-      return String(s).replace(/[&<>"']/g, (c) => {
-        const charMap = {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#39;',
-        };
-        return charMap[c];
-      });
-    };
-
-    // Создаёт DivIcon с поворотом под track (deg) и подписью flight
-    const createPlaneIcon = (track = 0, flight = '') => {
-      // SVG самолёта (простая плашка) — поворачиваем весь контейнер
+    // ============================================
+    // Plane Icon & Markers
+    // ============================================
+    const createPlaneIcon = (track = 0, flight = '', isSelected = false) => {
       const svg = `
-        <svg
-          fill="#000000"
-          viewBox="0 -0.5 25 25"
-          xmlns="http://www.w3.org/2000/svg">
-            <g id="SVGRepo_bgCarrier" stroke-width="0"></g><g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g><g id="SVGRepo_iconCarrier"><path d="m24.794 16.522-.281-2.748-10.191-5.131s.091-1.742 0-4.31c-.109-1.68-.786-3.184-1.839-4.339l.005.006h-.182c-1.048 1.15-1.726 2.653-1.834 4.312l-.001.021c-.091 2.567 0 4.31 0 4.31l-10.19 5.131-.281 2.748 6.889-2.074 3.491-.582c-.02.361-.031.783-.031 1.208 0 2.051.266 4.041.764 5.935l-.036-.162-2.728 1.095v1.798l3.52-.8c.155.312.3.566.456.812l-.021-.035v.282c.032-.046.062-.096.093-.143.032.046.061.096.094.143v-.282c.135-.21.28-.464.412-.726l.023-.051 3.52.8v-1.798l-2.728-1.095c.463-1.733.728-3.723.728-5.774 0-.425-.011-.847-.034-1.266l.003.058 3.492.582 6.888 2.074z"></path>
-            </g>
+        <svg viewBox="0 -0.5 25 25" xmlns="http://www.w3.org/2000/svg">
+          <path d="m24.794 16.522-.281-2.748-10.191-5.131s.091-1.742 0-4.31c-.109-1.68-.786-3.184-1.839-4.339l.005.006h-.182c-1.048 1.15-1.726 2.653-1.834 4.312l-.001.021c-.091 2.567 0 4.31 0 4.31l-10.19 5.131-.281 2.748 6.889-2.074 3.491-.582c-.02.361-.031.783-.031 1.208 0 2.051.266 4.041.764 5.935l-.036-.162-2.728 1.095v1.798l3.52-.8c.155.312.3.566.456.812l-.021-.035v.282c.032-.046.062-.096.093-.143.032.046.061.096.094.143v-.282c.135-.21.28-.464.412-.726l.023-.051 3.52.8v-1.798l-2.728-1.095c.463-1.733.728-3.723.728-5.774 0-.425-.011-.847-.034-1.266l.003.058 3.492.582 6.888 2.074z"/>
         </svg>
       `;
-      const html = `<div>
-                      <div style="transform: rotate(${track}deg); display:flex; flex-direction:column; align-items:center;" class="plane-icon">${svg}</div>
+      const selectedClass = isSelected ? 'selected' : '';
+      const html = `
+        <div>
+          <div style="transform: rotate(${track}deg); display:flex; flex-direction:column; align-items:center;" class="plane-icon ${selectedClass}">${svg}</div>
                       ${flight ? `<div class="plane-label">${escapeHtml(flight)}</div>` : ''}
-                    </div>`;
+        </div>
+      `;
       return L.divIcon({
         html,
-        className: '', // пустой, чтобы избежать дефолтных стилей
+        className: '',
         iconSize: [28, 36],
         iconAnchor: [14, 18],
       });
     };
 
-    // Обновление/добавление маркера
     const upsertPlane = (rec) => {
-      if (!rec.icao) return;
-      if (rec.lat == null || rec.lon == null) return; // пропускаем, если нет координат
+      if (!rec.icao || rec.lat == null || rec.lon == null) return;
 
       const key = rec.icao;
       const latlng = [rec.lat, rec.lon];
       const track = Number.isFinite(rec.track) ? rec.track : 0;
-      const flight = rec.flight ? rec.flight.trim() : '';
+      const flight = rec.flight?.trim() || '';
+      const isSelected = selectedAircraft.value === key;
 
       const existing = planes.get(key);
       if (existing) {
-        // Обновляем позицию и иконку (в Leaflet: setLatLng, setIcon)
         try {
           existing.marker.setLatLng(latlng);
-          // создаём новый икон если flight/track изменились
-          const newIcon = createPlaneIcon(track, flight);
-          existing.marker.setIcon(newIcon);
+          existing.marker.setIcon(createPlaneIcon(track, flight, isSelected));
           existing.lastUpdated = Date.now();
           existing.record = rec;
         } catch (e) {
           console.error('Update marker failed', e);
         }
       } else {
-        // Создаём новый маркер
-        const icon = createPlaneIcon(track, flight);
+        const icon = createPlaneIcon(track, flight, isSelected);
         const marker = L.marker(latlng, { icon }).addTo(map);
-        const popupHtml = renderPopup(rec);
-        marker.bindPopup(popupHtml, { maxWidth: 240 });
 
-        planes.set(key, {
-          marker,
-          lastUpdated: Date.now(),
-          record: rec,
+        marker.on('click', () => {
+          selectedAircraft.value = key;
         });
+
+        planes.set(key, { marker, lastUpdated: Date.now(), record: rec });
       }
     };
 
+    // ============================================
+    // History Rendering
+    // ============================================
     const renderLine = (coords, color) => {
       const latlngs = coords
-        .map((c) => (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) ? [c.lat, c.lon] : null)
-        .filter((c) => c !== null);
+        .map(c => (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) ? [c.lat, c.lon] : null)
+        .filter(c => c !== null);
       if (latlngs.length < 2) return null;
-      return L.polyline(latlngs, { color, weight: 2, opacity: 0.5 }).addTo(map);
+      return L.polyline(latlngs, { color, weight: 3, opacity: 0.8 }).addTo(map);
     };
 
     const renderHistoryPath = (coords, colorIndex = 0) => {
-      if (!Array.isArray(coords) || coords.length < 2) {
-        console.log('Not enouhg data in segment');
-        return null;
-      };
-      renderLine(coords, 'gray');
+      if (!Array.isArray(coords) || coords.length < 2) return null;
+
+      renderLine(coords, '#4a5568');
       const isSmallGap = (t1, t2) => Math.abs(new Date(t1).getTime() - new Date(t2).getTime()) < 60_000;
+
       let richSegments = [coords[0]];
       for (let i = 1; i < coords.length; ++i) {
         const a = coords[i - 1];
@@ -233,57 +956,75 @@
           if (!richSegments.length) richSegments.push(a);
           richSegments.push(b);
         } else {
-          renderLine(richSegments, colors[colorIndex]);
+          renderLine(richSegments, colors[colorIndex % colors.length]);
           richSegments = [];
         }
       }
-      if (richSegments.length) renderLine(richSegments, colors[colorIndex]);
+      if (richSegments.length) renderLine(richSegments, colors[colorIndex % colors.length]);
     };
 
     const clearHistoryPaths = () => {
-      map.eachLayer((layer) => {
+      map.eachLayer(layer => {
         if (layer instanceof L.Polyline && !(layer instanceof L.Marker)) {
           map.removeLayer(layer);
         }
       });
     };
 
-    const renderPathOnClick = (icao) => {
-      const lastFlight = (aircraftHistory.get(icao) || []).at(-1);
-      if (!lastFlight || lastFlight.segments.length < 2) {
-        console.log('No enough data', lastFlight);
-        return;
-      }
+    // Store last loaded history for focus functionality
+    let lastLoadedHistoryCoords = [];
+
+    const fetchAndRenderHistory = async (icao) => {
       clearHistoryPaths();
-      renderHistoryPath(lastFlight.segments);
+      lastLoadedHistoryCoords = [];
+      if (!icao) return;
+
+      try {
+        const res = await fetch(`/aircraft-data?icao=${encodeURIComponent(icao)}`);
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+
+        const flights = data[icao] || [];
+        for (let i = 0; i < flights.length; i++) {
+          renderHistoryPath(flights[i].segments, i);
+        }
+
+        // Store coords for focus button
+        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => [s.lat, s.lon]));
+      } catch (e) {
+        console.error('Error fetching history:', e);
+        // Fallback to local history
+        const flights = aircraftHistory.get(icao) || [];
+        for (let i = 0; i < flights.length; i++) {
+          renderHistoryPath(flights[i].segments, i);
+        }
+        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => [s.lat, s.lon]));
+      }
     };
 
-    const renderPopup = (rec) => {
-      const parts = [
-        ['ICAO', rec.icao],
-        ['Flight', rec.flight || '—'],
-        ['Alt', rec.altitude != null ? `${Math.round(rec.altitude * 0.3048)} m | ${rec.altitude} ft` : '—'],
-        ['Ground speed (kt)', rec.groundSpeed != null ? Math.round(rec.groundSpeed * 1.852) + ' km/h' : '—'],
-        ['Track (°)', rec.track != null ? rec.track : '—'],
-        ['Lat/Lon', (rec.lat != null && rec.lon != null) ? `${rec.lat.toFixed(5)}, ${rec.lon.toFixed(5)}` : '—'],
-      ];
-      return `
-        <div class="aircraft-popup">${parts.map((p) => `<b>${p[0]}:</b> ${escapeHtml(String(p[1]))}`).join('<br>')}
-          <button onclick="renderPathOnClick('${rec.icao}')">
-            Show History
-          </button>
-        </div>`;
+    const focusOnFlightHistory = (icao) => {
+      if (lastLoadedHistoryCoords.length > 1) {
+        map.fitBounds(lastLoadedHistoryCoords, { padding: [50, 50] });
+      } else {
+        // If no history, focus on current plane position
+        const plane = planes.get(icao);
+        if (plane && plane.record) {
+          const { lat, lon } = plane.record;
+          if (lat != null && lon != null) {
+            map.setView([lat, lon], 12);
+          }
+        }
+      }
     };
 
-    // Обработка пришедшего массива самолётов — заменить/обновить маркеры
+    // ============================================
+    // Aircraft Array Processing
+    // ============================================
     const onAircraftArray = (arr) => {
-      // arr: [{hex, flight, lat, lon, altitude, ...}, ...]
-      // Добавляем/обновляем
       for (const rec of arr) {
         upsertPlane(rec);
       }
 
-      // Удаляем устаревшие маркеры (если не обновлялись давно)
       const now = Date.now();
       for (const [key, obj] of planes.entries()) {
         if (now - obj.lastUpdated > STALE_MS) {
@@ -293,52 +1034,49 @@
       }
     };
 
-    // Вспомогательная функция для создания кнопок
-    const createButton = (text, onClick, container) => {
-      const btn = document.createElement('button');
-      btn.textContent = text;
-      btn.style.margin = '2px';
-      btn.addEventListener('click', onClick);
-      container.appendChild(btn);
-    };
-
-    // Обновление кнопок истории
-    const updateHistoryButtons = () => {
-      const historyBtnsEl = document.getElementById('history-btns');
-      historyBtnsEl.innerHTML = '';
-
-      // Кнопки для каждого самолёта
-      for (const [key, flights] of aircraftHistory.entries()) {
-        createButton(key.toUpperCase(), () => {
-          clearHistoryPaths();
-          for (let i = 0; i < flights.length; i++) {
-            renderHistoryPath(flights[i].segments, i % colors.length);
-          }
-        }, historyBtnsEl);
+    // ============================================
+    // Selection Change Handler
+    // ============================================
+    selectedAircraft.subscribe((icao, oldIcao) => {
+      // Update old marker icon
+      if (oldIcao) {
+        const oldPlane = planes.get(oldIcao);
+        if (oldPlane) {
+          const rec = oldPlane.record;
+          const track = Number.isFinite(rec.track) ? rec.track : 0;
+          const flight = rec.flight?.trim() || '';
+          oldPlane.marker.setIcon(createPlaneIcon(track, flight, false));
+        }
       }
 
-      // Кнопка "Show All"
-      createButton('Show All', () => {
-        clearHistoryPaths();
-        aircraftHistory.forEach((flights) => {
-          for (let i = 0; i < flights.length; i++) {
-            renderHistoryPath(flights[i].segments, i % colors.length);
-          }
-        });
-      }, historyBtnsEl);
+      // Update new marker icon
+      if (icao) {
+        const newPlane = planes.get(icao);
+        if (newPlane) {
+          const rec = newPlane.record;
+          const track = Number.isFinite(rec.track) ? rec.track : 0;
+          const flight = rec.flight?.trim() || '';
+          newPlane.marker.setIcon(createPlaneIcon(track, flight, true));
+        }
+      }
 
-      // Кнопка "Clear All"
-      createButton('Clear All', () => {
-        clearHistoryPaths();
-      }, historyBtnsEl);
-    };
+      // Fetch and render history for selected aircraft
+      fetchAndRenderHistory(icao);
+    });
+
+    // ============================================
+    // WebSocket Connection
+    // ============================================
+    const wsUrl = `ws://localhost:${WS_PORT}/info`;
+    let ws;
+    let lastMsgAt = 0;
 
     const connect = () => {
       ws = new WebSocket(wsUrl);
-      setWsStatus('connecting…', 'orange');
+      wsConnected.value = false;
 
       ws.addEventListener('open', () => {
-        setWsStatus('connected', 'green');
+        wsConnected.value = true;
         console.info('WS connected', wsUrl);
         eventBus.emit('connected');
       });
@@ -347,6 +1085,7 @@
         try {
           const parsed = JSON.parse(evt.data);
           if (parsed.type === 'aircrafts') {
+            lastMsgAt = Date.now();
             eventBus.emit('aircrafts', parsed.payload);
           } else if (parsed.type === 'history') {
             eventBus.emit('history', parsed.payload);
@@ -357,44 +1096,42 @@
       });
 
       ws.addEventListener('close', () => {
-        setWsStatus('disconnected', 'red');
+        wsConnected.value = false;
         console.warn('WS disconnected — reconnect in 3s');
         setTimeout(connect, 3000);
       });
 
       ws.addEventListener('error', (err) => {
-        setWsStatus('error', 'red');
+        wsConnected.value = false;
         console.error('WS error', err);
         ws.close();
       });
     };
 
-    // Отказоустойчивость: если WS долго не получает данные — показать статус
-    let lastMsgAt = 0;
-
-    // Подписка на события через Observable
+    // ============================================
+    // Event Handlers
+    // ============================================
     eventBus.on('aircrafts', (payload) => {
-      lastMsgAt = Date.now();
-      setWsStatus('connected', 'green');
       onAircraftArray(payload);
     });
 
     eventBus.on('history', (payload) => {
       aircraftHistory.clear();
-      Object.keys(payload).forEach((icao) => {
+      Object.keys(payload).forEach(icao => {
         aircraftHistory.set(icao, payload[icao]);
-      })
-      updateHistoryButtons();
+      });
     });
 
+    // ============================================
+    // Initialization
+    // ============================================
     connect();
 
-    // Центрируем карту при первом появлении каких-то маркеров (опционально)
+    // Center map on first aircraft appearance
     let first = true;
     const observeFirst = setInterval(() => {
       if (planes.size > 0 && first) {
-        // центрируем на среднем положении видимых самолётов
-        const coords = [...planes.values()].map((p) => p.marker.getLatLng());
+        const coords = [...planes.values()].map(p => p.marker.getLatLng());
         if (coords.length) {
           const lat = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
           const lon = coords.reduce((s, c) => s + c.lng, 0) / coords.length;
@@ -405,25 +1142,19 @@
       }
     }, 1000);
 
-    // Дополнительно: клавиши для масштабирования (напр., +/-)
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.key === '+') map.zoomIn();
+      if (e.key === '+' || e.key === '=') map.zoomIn();
       if (e.key === '-') map.zoomOut();
+      if (e.key === 'Escape') selectedAircraft.value = null;
     });
 
+    // Idle detection
     setInterval(() => {
-      if (Date.now() - lastMsgAt > 10_000) {
-        // если не было сообщений 10+ сек — показываем "idle"
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          setWsStatus('connected (idle)', 'orange');
-        }
+      if (wsConnected.value && Date.now() - lastMsgAt > 10_000) {
+        // Could show idle status if needed
       }
     }, 3000);
-
-    // Экспорт функции для использования в HTML (через onclick)
-    window.renderPathOnClick = renderPathOnClick;
-
-
   </script>
 </body>
 
