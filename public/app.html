@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Flugzeug Radar — ADS-B Live</title>
 
-  <!-- Leaflet CSS + JS -->
-  <link rel="stylesheet" href="/public/leaflet.css" crossorigin="" />
-  <script src="/public/leaflet.js" crossorigin=""></script>
+  <!-- CesiumJS CSS + JS -->
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" />
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
@@ -48,57 +48,22 @@
       overflow: hidden;
     }
 
-    #map {
+    #cesiumContainer {
       flex: 1;
       height: 100%;
     }
 
-    /* Leaflet popup customization */
-    .leaflet-popup-content-wrapper {
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    /* Cesium UI customization */
+    .cesium-viewer-bottom {
+      display: none !important; /* Hide Cesium's default attribution/timeline */
     }
 
-    .leaflet-popup-tip {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
+    .cesium-viewer .cesium-viewer-toolbar {
+      display: none !important; /* Hide default toolbar */
     }
 
-    .plane-icon {
-      width: 28px;
-      height: 28px;
-      display: inline-block;
-      transform-origin: center;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-    }
-
-    .plane-icon svg {
-      fill: #00d9ff;
-      transition: fill 0.2s;
-      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
-    }
-
-    .plane-icon.selected svg {
-      fill: #ff6b35;
-      filter: drop-shadow(0 0 8px rgba(255, 107, 53, 0.6));
-    }
-
-    .plane-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text-primary);
-      background: var(--bg-secondary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      margin-top: 2px;
-      display: inline-block;
-      border: 1px solid var(--border);
-      white-space: nowrap;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    .cesium-widget-credits {
+      display: none !important;
     }
   </style>
 </head>
@@ -106,7 +71,7 @@
 <body>
   <div id="app-container">
     <side-panel></side-panel>
-  <div id="map"></div>
+    <div id="cesiumContainer"></div>
   </div>
 
   <script>
@@ -862,84 +827,216 @@
     };
 
     // ============================================
-    // Map Initialization
+    // Cesium Viewer Initialization
     // ============================================
-    const map = L.map('map', {
-      zoomControl: false
-    }).setView([52.52, 13.405], 7);
+    
+    // Disable Cesium Ion token requirement
+    Cesium.Ion.defaultAccessToken = undefined;
+    
+    // Create viewer with OpenStreetMap imagery
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      imageryProvider: false, // We'll add it after
+      baseLayerPicker: false,
+      geocoder: false,
+      homeButton: false,
+      sceneModePicker: false,
+      navigationHelpButton: false,
+      animation: false,
+      timeline: false,
+      fullscreenButton: false,
+      vrButton: false,
+      infoBox: false,
+      selectionIndicator: false,
+      creditContainer: document.createElement('div'), // Hide credits
+    });
 
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    // Add OpenStreetMap imagery layer
+    const osmProvider = new Cesium.OpenStreetMapImageryProvider({
+      url: 'https://tile.openstreetmap.org/',
+    });
+    
+    const imageryLayer = viewer.imageryLayers.addImageryProvider(osmProvider);
+    
+    // Log when tiles are loaded
+    console.info('CesiumJS: OpenStreetMap imagery provider added');
+    
+    // Listen for tile load errors
+    viewer.scene.globe.tileLoadProgressEvent.addEventListener((queueLength) => {
+      if (queueLength === 0) {
+        console.info('CesiumJS: All tiles loaded');
+      }
+    });
 
-    // CARTO Dark - dark theme
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    }).addTo(map);
+    // Enable depth testing to prevent aircraft from showing through globe
+    viewer.scene.globe.depthTestAgainstTerrain = false;
+
+    // Enable all camera controls (scroll zoom, drag rotate, etc.)
+    viewer.scene.screenSpaceCameraController.enableRotate = true;
+    viewer.scene.screenSpaceCameraController.enableTranslate = true;
+    viewer.scene.screenSpaceCameraController.enableZoom = true;
+    viewer.scene.screenSpaceCameraController.enableTilt = true;
+    viewer.scene.screenSpaceCameraController.enableLook = true;
+
+    // Set initial camera position - high altitude looking down
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(13.405, 52.52, 1000000), // 1000km altitude
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch: Cesium.Math.toRadians(-45), // Angled view instead of straight down
+        roll: 0.0
+      }
+    });
 
     // ============================================
-    // Plane Icon & Markers
+    // 3D Aircraft Model & Entities
     // ============================================
-    const createPlaneIcon = (track = 0, flight = '', isSelected = false) => {
-      const svg = `
-        <svg viewBox="0 -0.5 25 25" xmlns="http://www.w3.org/2000/svg">
-          <path d="m24.794 16.522-.281-2.748-10.191-5.131s.091-1.742 0-4.31c-.109-1.68-.786-3.184-1.839-4.339l.005.006h-.182c-1.048 1.15-1.726 2.653-1.834 4.312l-.001.021c-.091 2.567 0 4.31 0 4.31l-10.19 5.131-.281 2.748 6.889-2.074 3.491-.582c-.02.361-.031.783-.031 1.208 0 2.051.266 4.041.764 5.935l-.036-.162-2.728 1.095v1.798l3.52-.8c.155.312.3.566.456.812l-.021-.035v.282c.032-.046.062-.096.093-.143.032.046.061.096.094.143v-.282c.135-.21.28-.464.412-.726l.023-.051 3.52.8v-1.798l-2.728-1.095c.463-1.733.728-3.723.728-5.774 0-.425-.011-.847-.034-1.266l.003.058 3.492.582 6.888 2.074z"/>
-        </svg>
-      `;
-      const selectedClass = isSelected ? 'selected' : '';
-      const html = `
-        <div>
-          <div style="transform: rotate(${track}deg); display:flex; flex-direction:column; align-items:center;" class="plane-icon ${selectedClass}">${svg}</div>
-                      ${flight ? `<div class="plane-label">${escapeHtml(flight)}</div>` : ''}
-        </div>
-      `;
-      return L.divIcon({
-        html,
-        className: '',
-        iconSize: [28, 36],
-        iconAnchor: [14, 18],
-      });
-    };
-
+    
+    /**
+     * Creates or updates a 3D aircraft entity in Cesium
+     * @param {Object} rec - Aircraft record with icao, lat, lon, altitude, track, etc.
+     */
     const upsertPlane = (rec) => {
       if (!rec.icao || rec.lat == null || rec.lon == null) return;
 
       const key = rec.icao;
-      const latlng = [rec.lat, rec.lon];
       const track = Number.isFinite(rec.track) ? rec.track : 0;
+      const altitude = rec.altitude != null ? rec.altitude * 0.3048 : 1000; // Convert feet to meters, default 1000m
       const flight = rec.flight?.trim() || '';
       const isSelected = selectedAircraft.value === key;
+
+      const position = Cesium.Cartesian3.fromDegrees(rec.lon, rec.lat, altitude);
 
       const existing = planes.get(key);
       if (existing) {
         try {
-          existing.marker.setLatLng(latlng);
-          existing.marker.setIcon(createPlaneIcon(track, flight, isSelected));
+          // Update existing entity position smoothly
+          existing.entity.position = position;
+          
+          // Update orientation based on track
+          const heading = Cesium.Math.toRadians(track);
+          const pitch = 0;
+          const roll = 0;
+          existing.entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+            position,
+            new Cesium.HeadingPitchRoll(heading, pitch, roll)
+          );
+
+          // Update label if flight changed
+          if (existing.entity.label) {
+            existing.entity.label.text = flight ? flight.toUpperCase() : key.toUpperCase();
+          }
+
+          // Update color based on selection
+          if (existing.entity.model) {
+            existing.entity.model.color = isSelected 
+              ? Cesium.Color.fromCssColorString('#ff6b35')
+              : Cesium.Color.fromCssColorString('#00d9ff');
+          }
+
           existing.lastUpdated = Date.now();
           existing.record = rec;
         } catch (e) {
-          console.error('Update marker failed', e);
+          console.error('Update entity failed', e);
         }
       } else {
-        const icon = createPlaneIcon(track, flight, isSelected);
-        const marker = L.marker(latlng, { icon }).addTo(map);
-
-        marker.on('click', () => {
-          selectedAircraft.value = key;
+        // Create new entity with 3D model
+        const entity = viewer.entities.add({
+          id: key,
+          position: position,
+          orientation: Cesium.Transforms.headingPitchRollQuaternion(
+            position,
+            new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(track), 0, 0)
+          ),
+          model: {
+            uri: '/public/airplane.glb',
+            minimumPixelSize: 32,
+            maximumScale: 20000,
+            scale: 50.0,
+            color: isSelected 
+              ? Cesium.Color.fromCssColorString('#ff6b35')
+              : Cesium.Color.fromCssColorString('#00d9ff'),
+            colorBlendMode: Cesium.ColorBlendMode.MIX,
+            colorBlendAmount: 0.7,
+          },
+          label: {
+            text: flight ? flight.toUpperCase() : key.toUpperCase(),
+            font: '12px JetBrains Mono, monospace',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -40),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
         });
 
-        planes.set(key, { marker, lastUpdated: Date.now(), record: rec });
+        planes.set(key, { entity, lastUpdated: Date.now(), record: rec });
       }
     };
 
+    /**
+     * Updates an aircraft's position smoothly
+     * This function can be used for smooth interpolation if needed
+     */
+    const updateAircraftPosition = (icao, newLat, newLon, newAltitude, newTrack) => {
+      const plane = planes.get(icao);
+      if (!plane) return;
+
+      const altitude = newAltitude != null ? newAltitude * 0.3048 : 1000;
+      const position = Cesium.Cartesian3.fromDegrees(newLon, newLat, altitude);
+      
+      plane.entity.position = position;
+      
+      if (newTrack != null) {
+        const heading = Cesium.Math.toRadians(newTrack);
+        plane.entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+          position,
+          new Cesium.HeadingPitchRoll(heading, 0, 0)
+        );
+      }
+    };
+
+    // Handle entity click for selection
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((click) => {
+      const pickedObject = viewer.scene.pick(click.position);
+      if (Cesium.defined(pickedObject) && pickedObject.id) {
+        const entity = pickedObject.id;
+        if (entity.id && planes.has(entity.id)) {
+          selectedAircraft.value = entity.id;
+        }
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
     // ============================================
-    // History Rendering
+    // History Rendering (Cesium Polylines)
     // ============================================
+    const historyEntities = []; // Track history polylines for cleanup
+
     const renderLine = (coords, color) => {
-      const latlngs = coords
-        .map(c => (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) ? [c.lat, c.lon] : null)
-        .filter(c => c !== null);
-      if (latlngs.length < 2) return null;
-      return L.polyline(latlngs, { color, weight: 3, opacity: 0.8 }).addTo(map);
+      const positions = coords
+        .map(c => {
+          if (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) {
+            const alt = c.altitude != null ? c.altitude * 0.3048 : 1000;
+            return Cesium.Cartesian3.fromDegrees(c.lon, c.lat, alt);
+          }
+          return null;
+        })
+        .filter(p => p !== null);
+
+      if (positions.length < 2) return null;
+
+      const entity = viewer.entities.add({
+        polyline: {
+          positions: positions,
+          width: 3,
+          material: Cesium.Color.fromCssColorString(color).withAlpha(0.8),
+          clampToGround: false,
+        },
+      });
+
+      historyEntities.push(entity);
+      return entity;
     };
 
     const renderHistoryPath = (coords, colorIndex = 0) => {
@@ -964,11 +1061,11 @@
     };
 
     const clearHistoryPaths = () => {
-      map.eachLayer(layer => {
-        if (layer instanceof L.Polyline && !(layer instanceof L.Marker)) {
-          map.removeLayer(layer);
-        }
-      });
+      // Remove all history polyline entities
+      for (const entity of historyEntities) {
+        viewer.entities.remove(entity);
+      }
+      historyEntities.length = 0;
     };
 
     // Store last loaded history for focus functionality
@@ -990,7 +1087,7 @@
         }
 
         // Store coords for focus button
-        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => [s.lat, s.lon]));
+        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => ({ lat: s.lat, lon: s.lon, alt: s.altitude })));
       } catch (e) {
         console.error('Error fetching history:', e);
         // Fallback to local history
@@ -998,20 +1095,39 @@
         for (let i = 0; i < flights.length; i++) {
           renderHistoryPath(flights[i].segments, i);
         }
-        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => [s.lat, s.lon]));
+        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => ({ lat: s.lat, lon: s.lon, alt: s.altitude })));
       }
     };
 
     const focusOnFlightHistory = (icao) => {
       if (lastLoadedHistoryCoords.length > 1) {
-        map.fitBounds(lastLoadedHistoryCoords, { padding: [50, 50] });
+        // Calculate bounding sphere from coordinates
+        const positions = lastLoadedHistoryCoords.map(c => {
+          const alt = c.alt != null ? c.alt * 0.3048 : 1000;
+          return Cesium.Cartesian3.fromDegrees(c.lon, c.lat, alt);
+        });
+        
+        const boundingSphere = Cesium.BoundingSphere.fromPoints(positions);
+        viewer.camera.flyToBoundingSphere(boundingSphere, {
+          duration: 2.0,
+          offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), boundingSphere.radius * 3)
+        });
       } else {
         // If no history, focus on current plane position
         const plane = planes.get(icao);
         if (plane && plane.record) {
-          const { lat, lon } = plane.record;
+          const { lat, lon, altitude } = plane.record;
           if (lat != null && lon != null) {
-            map.setView([lat, lon], 12);
+            const alt = altitude != null ? altitude * 0.3048 : 1000;
+            viewer.camera.flyTo({
+              destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt + 50000),
+              duration: 2.0,
+              orientation: {
+                heading: Cesium.Math.toRadians(0),
+                pitch: Cesium.Math.toRadians(-45),
+                roll: 0.0
+              }
+            });
           }
         }
       }
@@ -1028,7 +1144,7 @@
       const now = Date.now();
       for (const [key, obj] of planes.entries()) {
         if (now - obj.lastUpdated > STALE_MS) {
-          map.removeLayer(obj.marker);
+          viewer.entities.remove(obj.entity);
           planes.delete(key);
         }
       }
@@ -1038,25 +1154,19 @@
     // Selection Change Handler
     // ============================================
     selectedAircraft.subscribe((icao, oldIcao) => {
-      // Update old marker icon
+      // Update old entity color
       if (oldIcao) {
         const oldPlane = planes.get(oldIcao);
-        if (oldPlane) {
-          const rec = oldPlane.record;
-          const track = Number.isFinite(rec.track) ? rec.track : 0;
-          const flight = rec.flight?.trim() || '';
-          oldPlane.marker.setIcon(createPlaneIcon(track, flight, false));
+        if (oldPlane && oldPlane.entity.model) {
+          oldPlane.entity.model.color = Cesium.Color.fromCssColorString('#00d9ff');
         }
       }
 
-      // Update new marker icon
+      // Update new entity color
       if (icao) {
         const newPlane = planes.get(icao);
-        if (newPlane) {
-          const rec = newPlane.record;
-          const track = Number.isFinite(rec.track) ? rec.track : 0;
-          const flight = rec.flight?.trim() || '';
-          newPlane.marker.setIcon(createPlaneIcon(track, flight, true));
+        if (newPlane && newPlane.entity.model) {
+          newPlane.entity.model.color = Cesium.Color.fromCssColorString('#ff6b35');
         }
       }
 
@@ -1127,15 +1237,32 @@
     // ============================================
     connect();
 
-    // Center map on first aircraft appearance
+    // Center camera on first aircraft appearance
     let first = true;
     const observeFirst = setInterval(() => {
       if (planes.size > 0 && first) {
-        const coords = [...planes.values()].map(p => p.marker.getLatLng());
-        if (coords.length) {
-          const lat = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
-          const lon = coords.reduce((s, c) => s + c.lng, 0) / coords.length;
-          map.setView([lat, lon], 7);
+        const planeArray = [...planes.values()];
+        if (planeArray.length) {
+          // Calculate average position
+          let totalLat = 0, totalLon = 0, totalAlt = 0;
+          for (const p of planeArray) {
+            totalLat += p.record.lat || 0;
+            totalLon += p.record.lon || 0;
+            totalAlt += (p.record.altitude || 0) * 0.3048;
+          }
+          const avgLat = totalLat / planeArray.length;
+          const avgLon = totalLon / planeArray.length;
+          const avgAlt = totalAlt / planeArray.length;
+
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(avgLon, avgLat, avgAlt + 500000),
+            duration: 3.0,
+            orientation: {
+              heading: Cesium.Math.toRadians(0),
+              pitch: Cesium.Math.toRadians(-60),
+              roll: 0.0
+            }
+          });
           first = false;
           clearInterval(observeFirst);
         }
@@ -1144,9 +1271,17 @@
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.key === '+' || e.key === '=') map.zoomIn();
-      if (e.key === '-') map.zoomOut();
-      if (e.key === 'Escape') selectedAircraft.value = null;
+      if (e.key === '+' || e.key === '=') {
+        const distance = viewer.camera.getMagnitude();
+        viewer.camera.zoomIn(distance * 0.25);
+      }
+      if (e.key === '-' || e.key === '_') {
+        const distance = viewer.camera.getMagnitude();
+        viewer.camera.zoomOut(distance * 0.25);
+      }
+      if (e.key === 'Escape') {
+        selectedAircraft.value = null;
+      }
     });
 
     // Idle detection
