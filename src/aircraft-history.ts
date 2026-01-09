@@ -18,10 +18,11 @@ type FlightHistory = {
 type HistorySegment = {
   lat: number;
   lon: number;
+  altitude: number;
   time: Date;
 };
 
-const toHistorySegment = (lat: number, lon: number, time: Date): HistorySegment => ({ lat, lon, time });
+const toHistorySegment = (lat: number, lon: number, altitude: number, time: Date): HistorySegment => ({ lat, lon, altitude, time });
 
 const findHistoryForAD = (ad: AircraftData, histories: FlightHistory[]): FlightHistory | null => {
   if (histories.length) {
@@ -39,11 +40,11 @@ export const formAircraftHistoryStore = (data: AircraftData[]): AircraftHistoryS
   const res: AircraftHistoryStore = {};
   for (const item of data) {
     const { icao } = item;
-    if (!item.lat || !item.lon) continue;
+    if (!item.lat || !item.lon || !item.altitude) continue;
     if (!res[icao]) res[icao] = [];
     if (!item.flight) {
       if (!segmentsWithoutFlight[icao]) segmentsWithoutFlight[icao] = [];
-      segmentsWithoutFlight[icao].push(toHistorySegment(item.lat, item.lon, item.updatedAt));
+      segmentsWithoutFlight[icao].push(toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt));
     } else {
       let passedHistory = findHistoryForAD(item, res[icao]);
       if (!passedHistory) {
@@ -58,7 +59,7 @@ export const formAircraftHistoryStore = (data: AircraftData[]): AircraftHistoryS
         }
         segmentsWithoutFlight[icao] = [];
       }
-      const newLength = passedHistory.segments.push(toHistorySegment(item.lat, item.lon, item.updatedAt));
+      const newLength = passedHistory.segments.push(toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt));
       passedHistory.to = passedHistory.segments[newLength - 1].time;
     }
   }
