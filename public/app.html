@@ -155,8 +155,9 @@
     const UPDATE_INTERVAL_MS = 1000;
     const STALE_MS = 30_000;
     
-    // Configuration: Choose map implementation ('leaflet' or 'cesium')
-    const MAP_TYPE = 'leaflet'; // Change this to 'leaflet' to use Leaflet.js
+    // Configuration: Map implementation ('leaflet' or 'cesium')
+    // Can be changed dynamically using the switcher in the side panel
+    let MAP_TYPE = 'cesium'; // Default to 3D globe
 
     const eventBus = new Observable();
     const selectedAircraft = new ObservableValue(null);
@@ -529,6 +530,66 @@
               margin-top: 4px;
             }
 
+            /* Map Switcher */
+            .map-switcher {
+              padding: 12px 20px;
+              background: #0a0e14;
+              border-top: 1px solid #30363d;
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+
+            .map-switcher-label {
+              font-size: 11px;
+              color: #6e7681;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              flex-shrink: 0;
+            }
+
+            .map-switcher-buttons {
+              display: flex;
+              gap: 8px;
+              flex: 1;
+            }
+
+            .map-btn {
+              flex: 1;
+              padding: 8px 12px;
+              background: #1a2029;
+              border: 1px solid #30363d;
+              border-radius: 6px;
+              color: #8b949e;
+              font-family: 'Space Grotesk', sans-serif;
+              font-size: 12px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.2s;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 6px;
+            }
+
+            .map-btn:hover {
+              background: #242b36;
+              border-color: #00d9ff;
+              color: #00d9ff;
+            }
+
+            .map-btn.active {
+              background: rgba(0, 217, 255, 0.1);
+              border-color: #00d9ff;
+              color: #00d9ff;
+              font-weight: 600;
+            }
+
+            .map-btn svg {
+              width: 14px;
+              height: 14px;
+            }
+
             /* Scrollbar */
             .panel-content::-webkit-scrollbar {
               width: 6px;
@@ -585,6 +646,27 @@
                 <div class="stat-label">Im Verlauf</div>
               </div>
             </div>
+            <div class="map-switcher">
+              <span class="map-switcher-label">Ansicht</span>
+              <div class="map-switcher-buttons">
+                <button class="map-btn" id="map-btn-leaflet" title="2D Karte">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="3" y1="9" x2="21" y2="9"></line>
+                    <line x1="9" y1="21" x2="9" y2="9"></line>
+                  </svg>
+                  <span>2D</span>
+                </button>
+                <button class="map-btn active" id="map-btn-cesium" title="3D Globus">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  </svg>
+                  <span>3D</span>
+                </button>
+              </div>
+            </div>
             <div class="connection-status">
               <div class="status-dot" id="status-dot"></div>
               <span class="status-text" id="status-text">Verbinden...</span>
@@ -598,10 +680,27 @@
         this.statusText = this.shadowRoot.getElementById('status-text');
         this.totalAircraft = this.shadowRoot.getElementById('total-aircraft');
         this.totalHistory = this.shadowRoot.getElementById('total-history');
+        this.mapBtnLeaflet = this.shadowRoot.getElementById('map-btn-leaflet');
+        this.mapBtnCesium = this.shadowRoot.getElementById('map-btn-cesium');
 
         this.icaoSelect.addEventListener('change', (e) => {
           const value = e.target.value;
           selectedAircraft.value = value || null;
+        });
+
+        // Map switcher button handlers
+        this.mapBtnLeaflet.addEventListener('click', () => {
+          switchMapType('leaflet');
+        });
+
+        this.mapBtnCesium.addEventListener('click', () => {
+          switchMapType('cesium');
+        });
+
+        // Update active state based on current map type
+        eventBus.on('map-type-changed', (type) => {
+          this.mapBtnLeaflet.classList.toggle('active', type === 'leaflet');
+          this.mapBtnCesium.classList.toggle('active', type === 'cesium');
         });
       }
 
@@ -870,6 +969,7 @@
       cleanup() { throw new Error('Must implement cleanup()'); }
       zoomIn() { throw new Error('Must implement zoomIn()'); }
       zoomOut() { throw new Error('Must implement zoomOut()'); }
+      destroy() { throw new Error('Must implement destroy()'); }
       
       // Common method
       getAllAircraft() {
@@ -1214,6 +1314,26 @@
           });
         }
       }
+
+      destroy() {
+        // Clean up all entities
+        this.clearFlightHistory();
+        for (const [icao] of this.planes) {
+          this.removeAircraft(icao);
+        }
+        
+        // Destroy click handler
+        if (this.clickHandler) {
+          this.clickHandler.destroy();
+          this.clickHandler = null;
+        }
+        
+        // Destroy Cesium viewer
+        if (this.viewer) {
+          this.viewer.destroy();
+          this.viewer = null;
+        }
+      }
     }
 
     // ============================================
@@ -1409,6 +1529,20 @@
           }
         }
       }
+
+      destroy() {
+        // Clean up all markers and layers
+        this.clearFlightHistory();
+        for (const [icao] of this.planes) {
+          this.removeAircraft(icao);
+        }
+        
+        // Remove Leaflet map
+        if (this.map) {
+          this.map.remove();
+          this.map = null;
+        }
+      }
     }
 
     // ============================================
@@ -1427,10 +1561,48 @@
     }
 
     // Initialize the selected map adapter
-    const mapAdapter = createMapAdapter(MAP_TYPE, 'cesiumContainer');
+    let mapAdapter = createMapAdapter(MAP_TYPE, 'cesiumContainer');
     mapAdapter.initialize();
     console.info(`✈️  Flugzeug Radar - Map adapter initialized: ${MAP_TYPE.toUpperCase()}`);
-    console.info(`💡 To switch map types, change MAP_TYPE constant to 'leaflet' or 'cesium'`);
+    
+    // Function to switch map types dynamically
+    function switchMapType(newType) {
+      if (newType === MAP_TYPE) {
+        console.info(`Already using ${newType} map`);
+        return;
+      }
+
+      console.info(`🔄 Switching map from ${MAP_TYPE} to ${newType}...`);
+      
+      // Clear current selection
+      selectedAircraft.value = null;
+      
+      // Store aircraft data before destroying old adapter
+      const oldPlanes = new Map(mapAdapter.getAllAircraft());
+      
+      // Destroy old adapter (cleans up DOM elements, event handlers, etc.)
+      mapAdapter.destroy();
+      
+      // Update map type
+      MAP_TYPE = newType;
+      
+      // Create and initialize new adapter
+      mapAdapter = createMapAdapter(MAP_TYPE, 'cesiumContainer');
+      mapAdapter.initialize();
+      
+      // Re-add all aircraft to the new map
+      for (const [icao, planeData] of oldPlanes.entries()) {
+        mapAdapter.addOrUpdateAircraft(planeData.record);
+      }
+      
+      // Emit event to update UI (buttons, etc.)
+      eventBus.emit('map-type-changed', MAP_TYPE);
+      
+      console.info(`✅ Switched to ${MAP_TYPE.toUpperCase()} map successfully`);
+    }
+    
+    // Emit initial map type
+    eventBus.emit('map-type-changed', MAP_TYPE);
 
     // ============================================
     // Unified Functions Using Map Adapter
