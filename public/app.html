@@ -848,19 +848,35 @@
       infoBox: false,
       selectionIndicator: false,
       creditContainer: document.createElement('div'), // Hide credits
+      contextOptions: {
+        webgl: {
+            antialias: true,             // Включаем аппаратное сглаживание (MSAA)
+            powerPreference: "high-performance" // Просим дискретную видеокарту
+        }
+      }
     });
 
-    // Add OpenStreetMap imagery layer
-    const osmProvider = new Cesium.OpenStreetMapImageryProvider({
-      url: 'https://tile.openstreetmap.org/',
+    viewer.resolutionScale = window.devicePixelRatio;
+    viewer.scene.postProcessStages.fxaa.enabled = false;
+    viewer.scene.globe.maximumScreenSpaceError = 1.5;
+    viewer.scene.globe.enableLighting = true;
+
+    // Add dark theme imagery layer (CartoDB Dark Matter)
+    const darkProvider = new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+      subdomains: ['a', 'b', 'c', 'd'],
+      credit: '© OpenStreetMap contributors © CARTO',
     });
     
-    const imageryLayer = viewer.imageryLayers.addImageryProvider(osmProvider);
+    const imageryLayer = viewer.imageryLayers.addImageryProvider(darkProvider);
+    
+    // Set darker base color for the globe
+    viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e14');
     
     // Log when tiles are loaded
-    console.info('CesiumJS: OpenStreetMap imagery provider added');
+    console.info('CesiumJS: Dark theme imagery provider added');
     
-    // Listen for tile load errors
+    // Listen for tile load events
     viewer.scene.globe.tileLoadProgressEvent.addEventListener((queueLength) => {
       if (queueLength === 0) {
         console.info('CesiumJS: All tiles loaded');
@@ -912,14 +928,20 @@
           // Update existing entity position smoothly
           existing.entity.position = position;
           
-          // Update orientation based on track
-          const heading = Cesium.Math.toRadians(track);
+          // Update orientation based on track (subtract 90° to correct model orientation)
+          const heading = Cesium.Math.toRadians(track - 90);
           const pitch = 0;
           const roll = 0;
           existing.entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
             position,
             new Cesium.HeadingPitchRoll(heading, pitch, roll)
           );
+
+          // Update ground line
+          const groundPosition = Cesium.Cartesian3.fromDegrees(rec.lon, rec.lat, 0);
+          if (existing.groundLine) {
+            existing.groundLine.polyline.positions = [position, groundPosition];
+          }
 
           // Update label if flight changed
           if (existing.entity.label) {
@@ -939,13 +961,13 @@
           console.error('Update entity failed', e);
         }
       } else {
-        // Create new entity with 3D model
+        // Create new entity with 3D model (subtract 90° to correct model orientation)
         const entity = viewer.entities.add({
           id: key,
           position: position,
           orientation: Cesium.Transforms.headingPitchRollQuaternion(
             position,
-            new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(track), 0, 0)
+            new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(track - 90), 0, 0)
           ),
           model: {
             uri: '/public/airplane.glb',
@@ -970,7 +992,18 @@
           },
         });
 
-        planes.set(key, { entity, lastUpdated: Date.now(), record: rec });
+        // Create ground line (vertical line from aircraft to ground)
+        const groundPosition = Cesium.Cartesian3.fromDegrees(rec.lon, rec.lat, 0);
+        const groundLine = viewer.entities.add({
+          polyline: {
+            positions: [position, groundPosition],
+            width: 2,
+            material: Cesium.Color.fromCssColorString('#6e7681').withAlpha(0.5),
+            depthFailMaterial: Cesium.Color.fromCssColorString('#6e7681').withAlpha(0.2),
+          },
+        });
+
+        planes.set(key, { entity, groundLine, lastUpdated: Date.now(), record: rec });
       }
     };
 
@@ -984,11 +1017,17 @@
 
       const altitude = newAltitude != null ? newAltitude * 0.3048 : 1000;
       const position = Cesium.Cartesian3.fromDegrees(newLon, newLat, altitude);
+      const groundPosition = Cesium.Cartesian3.fromDegrees(newLon, newLat, 0);
       
       plane.entity.position = position;
       
+      // Update ground line
+      if (plane.groundLine) {
+        plane.groundLine.polyline.positions = [position, groundPosition];
+      }
+      
       if (newTrack != null) {
-        const heading = Cesium.Math.toRadians(newTrack);
+        const heading = Cesium.Math.toRadians(newTrack - 90); // Subtract 90° to correct orientation
         plane.entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
           position,
           new Cesium.HeadingPitchRoll(heading, 0, 0)
@@ -1145,6 +1184,9 @@
       for (const [key, obj] of planes.entries()) {
         if (now - obj.lastUpdated > STALE_MS) {
           viewer.entities.remove(obj.entity);
+          if (obj.groundLine) {
+            viewer.entities.remove(obj.groundLine);
+          }
           planes.delete(key);
         }
       }
