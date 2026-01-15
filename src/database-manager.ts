@@ -42,6 +42,13 @@ export class DatabaseManager {
     });
   }
 
+  public async getLastAircraftData(icao: string): Promise<AircraftData | null> {
+    return this.prisma.aircraftData.findFirst({
+      orderBy: { updatedAt: 'desc' },
+      where: { icao },
+    });
+  }
+
   public async getAllAircraftData(): Promise<AircraftData[]> {
     const rawData = await this.getAircraftData();
     return rawData.filter((data) => data.lat && data.lon);

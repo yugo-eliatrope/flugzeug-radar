@@ -10,10 +10,11 @@ import { DatabaseManager } from './database-manager';
 import { AircraftDataRepeater } from './aircraft-data-repeater';
 import { readAllFilesInDir } from './fs';
 import { HttpServer } from './http-server';
+import { AircraftData, UnsavedAircraftData } from './domain';
 
 const staticFilesPromise = readAllFilesInDir('./public');
 
-const AIRCRAFT_DATA_SAVE_INTERVAL_MS = 10_000;
+const AIRCRAFT_DATA_SAVE_INTERVAL_MS = 7_000;
 
 const repeatParamFlag = '--repeatFrom';
 
@@ -24,6 +25,8 @@ const parseRepeatParam = (params: string[]) => {
     return value;
   }
 };
+
+const lastSavedAD: Record<string, Date> = {};
 
 const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
@@ -66,36 +69,57 @@ const startUp = async () => {
 
   interval.unref();
 
-  eventBus.on('readsb:data', (line) => {
+  const onReadsbData = (line: string) => {
     const parsed = parseSBSLine(line);
     state.update(parsed);
-  });
+  };
 
-  eventBus.on('repeater:data', (data) => {
+  const onRepeaterData = (data: AircraftData) => {
     state.update({
       ...data,
       messageType: '0',
       transmissionType: 0,
       generatedAt: data.updatedAt,
     });
-  });
+  };
 
-  eventBus.on('state:updated', async (aircraft) => {
-    if (savingToDB) {
-      const lastSaved = (await database.getAircraftData({ limit: 1, from: new Date(Date.now() - AIRCRAFT_DATA_SAVE_INTERVAL_MS) }))[0];
-      if (!lastSaved) {
+  const onStateUpdated = async (aircraft: UnsavedAircraftData) => {
+    if (savingToDB && aircraft.lat && aircraft.lon) {
+      const lastSavedTime = lastSavedAD[aircraft.icao];
+      if (!lastSavedTime || lastSavedTime.getTime() < aircraft.updatedAt.getTime() - AIRCRAFT_DATA_SAVE_INTERVAL_MS) {
+        lastSavedAD[aircraft.icao] = aircraft.updatedAt;
         await database.saveAircraftData(aircraft);
       }
     }
-  });
+  };
+
+  const onStateRemoved = async (aircraft: UnsavedAircraftData) => {
+    delete lastSavedAD[aircraft.icao];
+    if (savingToDB && aircraft.lat && aircraft.lon) {
+      const lastSavedItem = await database.getLastAircraftData(aircraft.icao);
+      if (!lastSavedItem || lastSavedItem.lat !== aircraft.lat || lastSavedItem.lon !== aircraft.lon) {
+        await database.saveAircraftData(aircraft);
+      }
+    }
+  };
+
+  eventBus.on('readsb:data', onReadsbData);
+  eventBus.on('repeater:data', onRepeaterData);
+  eventBus.on('state:updated', onStateUpdated);
+  eventBus.on('state:removed', onStateRemoved);
 
   sbs.start();
 
   const shutdown = async () => {
     logger.info('Shutting down...');
+    clearInterval(interval);
+    eventBus.off('readsb:data', onReadsbData);
+    eventBus.off('repeater:data', onRepeaterData);
+    eventBus.off('state:updated', onStateUpdated);
+    eventBus.off('state:removed', onStateRemoved);
     sbs.stop();
+    await wsServer.close();
     await httpServer.stop();
-    wsServer.close();
     await database.disconnect();
     logger.info('Shut down complete');
     process.exit(0);

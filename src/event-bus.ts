@@ -5,6 +5,7 @@ export type AppEvents = {
   'readsb:data': string;
   'repeater:data': AircraftData;
   'state:updated': UnsavedAircraftData;
+  'state:removed': UnsavedAircraftData;
 };
 
 export type EventName = keyof AppEvents;

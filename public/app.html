@@ -1206,18 +1206,26 @@
       }
 
       _renderLine(coords, color) {
-        const positions = coords
+        const positionsWithCoords = coords
           .map(c => {
             if (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) {
               const alt = c.altitude != null ? c.altitude * 0.3048 : 1000;
-              return Cesium.Cartesian3.fromDegrees(c.lon, c.lat, alt);
+              return {
+                position: Cesium.Cartesian3.fromDegrees(c.lon, c.lat, alt),
+                lat: c.lat,
+                lon: c.lon,
+                alt: alt
+              };
             }
             return null;
           })
           .filter(p => p !== null);
 
-        if (positions.length < 2) return;
+        if (positionsWithCoords.length < 2) return;
 
+        const positions = positionsWithCoords.map(p => p.position);
+
+        // Create the main flight path polyline
         const entity = this.viewer.entities.add({
           polyline: {
             positions: positions,
@@ -1228,6 +1236,33 @@
         });
 
         this.historyEntities.push(entity);
+
+        // Add transparent wall from flight path to ground
+        this._addPathWall(positionsWithCoords, color);
+      }
+
+      _addPathWall(positionsWithCoords, pathColor) {
+        if (positionsWithCoords.length < 2) return;
+
+        // Create positions array for the wall (geographic positions with heights)
+        const wallPositions = positionsWithCoords.map(p => 
+          Cesium.Cartographic.fromDegrees(p.lon, p.lat, p.alt)
+        );
+
+        // Create a wall entity that extends from the flight path down to the ground
+        const wallEntity = this.viewer.entities.add({
+          wall: {
+            positions: wallPositions.map(c => 
+              Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height)
+            ),
+            minimumHeights: new Array(wallPositions.length).fill(0), // Ground level
+            maximumHeights: wallPositions.map(c => c.height), // Flight path altitude
+            material: Cesium.Color.ORANGE.withAlpha(0.15), // Transparent orange
+            outline: false,
+          },
+        });
+
+        this.historyEntities.push(wallEntity);
       }
 
       clearFlightHistory() {
@@ -1349,46 +1384,46 @@
 
       initialize() {
         this.map = L.map(this.containerId, {
-          zoomControl: false
-        }).setView([52.52, 13.405], 7);
+      zoomControl: false
+    }).setView([52.52, 13.405], 7);
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
 
         // CARTO Dark theme
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         }).addTo(this.map);
 
         console.info('Leaflet: Map initialized with dark theme');
       }
 
       addOrUpdateAircraft(rec) {
-        if (!rec.icao || rec.lat == null || rec.lon == null) return;
+      if (!rec.icao || rec.lat == null || rec.lon == null) return;
 
-        const key = rec.icao;
-        const latlng = [rec.lat, rec.lon];
-        const track = Number.isFinite(rec.track) ? rec.track : 0;
-        const flight = rec.flight?.trim() || '';
-        const isSelected = selectedAircraft.value === key;
+      const key = rec.icao;
+      const latlng = [rec.lat, rec.lon];
+      const track = Number.isFinite(rec.track) ? rec.track : 0;
+      const flight = rec.flight?.trim() || '';
+      const isSelected = selectedAircraft.value === key;
 
         const existing = this.planes.get(key);
-        if (existing) {
-          try {
-            existing.marker.setLatLng(latlng);
+      if (existing) {
+        try {
+          existing.marker.setLatLng(latlng);
             existing.marker.setIcon(this._createPlaneIcon(track, flight, isSelected));
-            existing.lastUpdated = Date.now();
-            existing.record = rec;
-          } catch (e) {
-            console.error('Update marker failed', e);
-          }
-        } else {
+          existing.lastUpdated = Date.now();
+          existing.record = rec;
+        } catch (e) {
+          console.error('Update marker failed', e);
+        }
+      } else {
           const icon = this._createPlaneIcon(track, flight, isSelected);
           const marker = L.marker(latlng, { icon }).addTo(this.map);
 
-          marker.on('click', () => {
-            selectedAircraft.value = key;
-          });
+        marker.on('click', () => {
+          selectedAircraft.value = key;
+        });
 
           this.planes.set(key, { marker, lastUpdated: Date.now(), record: rec });
         }
@@ -1450,20 +1485,20 @@
         if (!Array.isArray(coords) || coords.length < 2) return;
 
         this._renderLine(coords, '#4a5568');
-        const isSmallGap = (t1, t2) => Math.abs(new Date(t1).getTime() - new Date(t2).getTime()) < 60_000;
+      const isSmallGap = (t1, t2) => Math.abs(new Date(t1).getTime() - new Date(t2).getTime()) < 60_000;
 
-        let richSegments = [coords[0]];
-        for (let i = 1; i < coords.length; ++i) {
-          const a = coords[i - 1];
-          const b = coords[i];
-          if (isSmallGap(a.time, b.time)) {
-            if (!richSegments.length) richSegments.push(a);
-            richSegments.push(b);
-          } else {
+      let richSegments = [coords[0]];
+      for (let i = 1; i < coords.length; ++i) {
+        const a = coords[i - 1];
+        const b = coords[i];
+        if (isSmallGap(a.time, b.time)) {
+          if (!richSegments.length) richSegments.push(a);
+          richSegments.push(b);
+        } else {
             this._renderLine(richSegments, colors[colorIndex % colors.length]);
-            richSegments = [];
-          }
+          richSegments = [];
         }
+      }
         if (richSegments.length) this._renderLine(richSegments, colors[colorIndex % colors.length]);
       }
 
@@ -1607,7 +1642,7 @@
     // ============================================
     // Unified Functions Using Map Adapter
     // ============================================
-    
+
     // Store last loaded history for focus functionality
     let lastLoadedHistoryCoords = [];
 
@@ -1740,8 +1775,8 @@
     const observeFirst = setInterval(() => {
       if (mapAdapter.getAllAircraft().size > 0 && first) {
         mapAdapter.focusOnFirstAircraft();
-        first = false;
-        clearInterval(observeFirst);
+          first = false;
+          clearInterval(observeFirst);
       }
     }, 1000);
 

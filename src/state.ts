@@ -67,8 +67,9 @@ export class AircraftState {
     const now = Date.now();
     for (const [icao, rec] of this.map.entries()) {
       if (now - rec.updatedAt.getTime() > this.maxAgeMs) {
-        this.logger.info(`Removing stale aircraft data for ICAO: ${icao}`);
+        this.eventBus.emit('state:removed', { ...rec });
         this.map.delete(icao);
+        this.logger.info(`Removed stale aircraft data for ICAO: ${icao}`);
       }
     }
   }

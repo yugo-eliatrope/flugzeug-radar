@@ -86,12 +86,16 @@ export class WebSocketServer {
     }
   };
 
-  public close = () => {
-    for (const client of this.clients) {
-      client.close();
-    }
-    this.clients.clear();
-    this.wss.close();
-    this.logger.info('WebSocket server closed');
+  public close = (): Promise<void> => {
+    return new Promise((resolve) => {
+      for (const client of this.clients) {
+        client.close();
+      }
+      this.clients.clear();
+      this.wss.close(() => {
+        this.logger.info('WebSocket server closed');
+        resolve();
+      });
+    });
   };
 }
