@@ -19,5 +19,6 @@ model AircraftData {
   verticalRate Int?
   inEmergency  Boolean  @default(false)
   isOnGround   Boolean  @default(false)
+  spotName     String? 
   updatedAt    DateTime
 }

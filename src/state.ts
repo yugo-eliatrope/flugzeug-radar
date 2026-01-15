@@ -7,6 +7,7 @@ export class AircraftState {
 
   constructor(
     private readonly maxAgeMs: number,
+    private readonly spotName: string | null,
     private readonly logger: ILogger,
     private readonly eventBus: EventBus
   ) { }
@@ -39,6 +40,7 @@ export class AircraftState {
       verticalRate: msg.verticalRate ?? data.verticalRate,
       inEmergency: msg.inEmergency ?? data.inEmergency,
       isOnGround: msg.isOnGround ?? data.isOnGround,
+      spotName: this.spotName,
       updatedAt: msg.generatedAt,
     };
   }
@@ -55,6 +57,7 @@ export class AircraftState {
       verticalRate: msg.verticalRate,
       inEmergency: msg.inEmergency,
       isOnGround: msg.isOnGround,
+      spotName: this.spotName,
       updatedAt: msg.generatedAt,
     };
   }

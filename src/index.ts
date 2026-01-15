@@ -37,6 +37,7 @@ const startUp = async () => {
   const savingToDB = !repeatParam;
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
+  logger.info(config.spotName ? `Spot name set to "${config.spotName}"` : 'No spot name configured');
 
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },
@@ -60,7 +61,7 @@ const startUp = async () => {
   const sbs = repeatParam
     ? new AircraftDataRepeater(repeatParam, database, logger.child('Repeater'), eventBus)
     : new SBSClient(config.sbs, logger.child('SBSClient'), eventBus);
-  const state = new AircraftState(config.state.maxAgeMs, logger.child('State'), eventBus);
+  const state = new AircraftState(config.state.maxAgeMs, config.spotName, logger.child('State'), eventBus);
 
   const interval = setInterval(() => {
     wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() })

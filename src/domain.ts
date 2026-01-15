@@ -1,4 +1,3 @@
-
 import { AircraftData } from '@prisma/client';
 
 export type SBSMessage = {
