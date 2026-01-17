@@ -10,7 +10,7 @@
   <!-- Leaflet CSS + JS (for 2D map) -->
   <link rel="stylesheet" href="/public/leaflet.css" crossorigin="" />
   <script src="/public/leaflet.js" crossorigin=""></script>
-  
+
   <!-- CesiumJS CSS + JS (for 3D globe) -->
   <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Widgets/widgets.css" />
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.113/Build/Cesium/Cesium.js"></script>
@@ -39,7 +39,8 @@
       box-sizing: border-box;
     }
 
-    html, body {
+    html,
+    body {
       height: 100%;
       margin: 0;
       font-family: 'Space Grotesk', system-ui, sans-serif;
@@ -60,11 +61,13 @@
 
     /* Cesium UI customization */
     .cesium-viewer-bottom {
-      display: none !important; /* Hide Cesium's default attribution/timeline */
+      display: none !important;
+      /* Hide Cesium's default attribution/timeline */
     }
 
     .cesium-viewer .cesium-viewer-toolbar {
-      display: none !important; /* Hide default toolbar */
+      display: none !important;
+      /* Hide default toolbar */
     }
 
     .cesium-widget-credits {
@@ -154,7 +157,7 @@
     const WS_PORT = 4000;
     const UPDATE_INTERVAL_MS = 1000;
     const STALE_MS = 30_000;
-    
+
     // Configuration: Map implementation ('leaflet' or 'cesium')
     // Can be changed dynamically using the switcher in the side panel
     let MAP_TYPE = 'cesium'; // Default to 3D globe
@@ -835,7 +838,7 @@
             const el = this.aircraftCard.querySelector(`#${id}`);
             if (el) el.textContent = value;
           };
-          
+
           updateEl('card-flight', rec.flight?.trim() || '—');
           updateEl('val-altitude', rec.altitude != null ? `${Math.round(rec.altitude * 0.3048)} m / ${rec.altitude} ft` : '—');
           updateEl('val-speed', rec.groundSpeed != null ? `${Math.round(rec.groundSpeed * 1.852)} km/h` : '—');
@@ -849,14 +852,14 @@
       async renderAircraftPhoto(icao) {
         const photoContainer = this.shadowRoot.getElementById('aircraft-photo');
         const creditContainer = this.shadowRoot.getElementById('photo-credit');
-        
+
         if (!photoContainer) return;
 
         // Check cache first
         if (aircraftPhotosCache.has(icao)) {
           const cached = aircraftPhotosCache.get(icao);
           photoContainer.classList.remove('loading');
-          
+
           if (cached) {
             photoContainer.innerHTML = `<img src="${cached.imgSrc}" alt="Flugzeugfoto" />`;
             if (cached.photographer || cached.link) {
@@ -885,7 +888,7 @@
           if (data.photos && data.photos.length > 0) {
             const photo = data.photos[0];
             const imgSrc = photo.thumbnail_large?.src || photo.thumbnail?.src;
-            
+
             if (imgSrc) {
               // Cache the result
               aircraftPhotosCache.set(icao, {
@@ -895,7 +898,7 @@
               });
 
               photoContainer.innerHTML = `<img src="${imgSrc}" alt="Flugzeugfoto" />`;
-              
+
               if (photo.photographer || photo.link) {
                 creditContainer.style.display = 'block';
                 creditContainer.innerHTML = `
@@ -946,7 +949,7 @@
     // ============================================
     // Map Adapter Interface & Implementations
     // ============================================
-    
+
     /**
      * Abstract interface for map implementations
      * Both Leaflet and Cesium adapters implement this interface
@@ -970,7 +973,7 @@
       zoomIn() { throw new Error('Must implement zoomIn()'); }
       zoomOut() { throw new Error('Must implement zoomOut()'); }
       destroy() { throw new Error('Must implement destroy()'); }
-      
+
       // Common method
       getAllAircraft() {
         return this.planes;
@@ -980,7 +983,7 @@
     // ============================================
     // Cesium Map Adapter
     // ============================================
-    
+
     class CesiumMapAdapter extends MapAdapter {
       constructor(containerId) {
         super(containerId);
@@ -992,7 +995,7 @@
       initialize() {
         // Disable Cesium Ion token requirement
         Cesium.Ion.defaultAccessToken = undefined;
-    
+
         // Create viewer with OpenStreetMap imagery
         this.viewer = new Cesium.Viewer(this.containerId, {
           imageryProvider: false, // We'll add it after
@@ -1015,24 +1018,24 @@
             }
           }
         });
-  
+
         this.viewer.resolutionScale = window.devicePixelRatio;
         this.viewer.scene.postProcessStages.fxaa.enabled = false;
         this.viewer.scene.globe.maximumScreenSpaceError = 1.5;
         this.viewer.scene.globe.enableLighting = true;
- 
+
         // Add dark theme imagery layer (CartoDB Dark Matter)
         const darkProvider = new Cesium.UrlTemplateImageryProvider({
           url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
           subdomains: ['a', 'b', 'c', 'd'],
           credit: '© OpenStreetMap contributors © CARTO',
         });
-        
+
         this.viewer.imageryLayers.addImageryProvider(darkProvider);
         this.viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e14');
-        
+
         console.info('CesiumJS: Dark theme imagery provider added');
-        
+
         this.viewer.scene.globe.tileLoadProgressEvent.addEventListener((queueLength) => {
           if (queueLength === 0) {
             console.info('CesiumJS: All tiles loaded');
@@ -1086,7 +1089,7 @@
         if (existing) {
           // Update existing entity
           existing.entity.position = position;
-          
+
           const heading = Cesium.Math.toRadians(track - 90);
           existing.entity.orientation = Cesium.Transforms.headingPitchRollQuaternion(
             position,
@@ -1103,7 +1106,7 @@
           }
 
           if (existing.entity.model) {
-            existing.entity.model.color = isSelected 
+            existing.entity.model.color = isSelected
               ? Cesium.Color.fromCssColorString('#ff6b35')
               : Cesium.Color.fromCssColorString('#00d9ff');
           }
@@ -1124,7 +1127,7 @@
               minimumPixelSize: 32,
               maximumScale: 20000,
               scale: 50.0,
-              color: isSelected 
+              color: isSelected
                 ? Cesium.Color.fromCssColorString('#ff6b35')
                 : Cesium.Color.fromCssColorString('#00d9ff'),
               colorBlendMode: Cesium.ColorBlendMode.MIX,
@@ -1178,7 +1181,7 @@
 
       renderFlightHistory(flights) {
         this.clearFlightHistory();
-        
+
         for (let i = 0; i < flights.length; i++) {
           this._renderHistoryPath(flights[i].segments, i);
         }
@@ -1245,14 +1248,14 @@
         if (positionsWithCoords.length < 2) return;
 
         // Create positions array for the wall (geographic positions with heights)
-        const wallPositions = positionsWithCoords.map(p => 
+        const wallPositions = positionsWithCoords.map(p =>
           Cesium.Cartographic.fromDegrees(p.lon, p.lat, p.alt)
         );
 
         // Create a wall entity that extends from the flight path down to the ground
         const wallEntity = this.viewer.entities.add({
           wall: {
-            positions: wallPositions.map(c => 
+            positions: wallPositions.map(c =>
               Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height)
             ),
             minimumHeights: new Array(wallPositions.length).fill(0), // Ground level
@@ -1278,7 +1281,7 @@
             const alt = c.alt != null ? c.alt * 0.3048 : 1000;
             return Cesium.Cartesian3.fromDegrees(c.lon, c.lat, alt);
           });
-          
+
           const boundingSphere = Cesium.BoundingSphere.fromPoints(positions);
           this.viewer.camera.flyToBoundingSphere(boundingSphere, {
             duration: 2.0,
@@ -1356,13 +1359,13 @@
         for (const [icao] of this.planes) {
           this.removeAircraft(icao);
         }
-        
+
         // Destroy click handler
         if (this.clickHandler) {
           this.clickHandler.destroy();
           this.clickHandler = null;
         }
-        
+
         // Destroy Cesium viewer
         if (this.viewer) {
           this.viewer.destroy();
@@ -1374,7 +1377,7 @@
     // ============================================
     // Leaflet Map Adapter
     // ============================================
-    
+
     class LeafletMapAdapter extends MapAdapter {
       constructor(containerId) {
         super(containerId);
@@ -1384,46 +1387,46 @@
 
       initialize() {
         this.map = L.map(this.containerId, {
-      zoomControl: false
-    }).setView([52.52, 13.405], 7);
+          zoomControl: false
+        }).setView([52.52, 13.405], 7);
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
 
         // CARTO Dark theme
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         }).addTo(this.map);
 
         console.info('Leaflet: Map initialized with dark theme');
       }
 
       addOrUpdateAircraft(rec) {
-      if (!rec.icao || rec.lat == null || rec.lon == null) return;
+        if (!rec.icao || rec.lat == null || rec.lon == null) return;
 
-      const key = rec.icao;
-      const latlng = [rec.lat, rec.lon];
-      const track = Number.isFinite(rec.track) ? rec.track : 0;
-      const flight = rec.flight?.trim() || '';
-      const isSelected = selectedAircraft.value === key;
+        const key = rec.icao;
+        const latlng = [rec.lat, rec.lon];
+        const track = Number.isFinite(rec.track) ? rec.track : 0;
+        const flight = rec.flight?.trim() || '';
+        const isSelected = selectedAircraft.value === key;
 
         const existing = this.planes.get(key);
-      if (existing) {
-        try {
-          existing.marker.setLatLng(latlng);
+        if (existing) {
+          try {
+            existing.marker.setLatLng(latlng);
             existing.marker.setIcon(this._createPlaneIcon(track, flight, isSelected));
-          existing.lastUpdated = Date.now();
-          existing.record = rec;
-        } catch (e) {
-          console.error('Update marker failed', e);
-        }
-      } else {
+            existing.lastUpdated = Date.now();
+            existing.record = rec;
+          } catch (e) {
+            console.error('Update marker failed', e);
+          }
+        } else {
           const icon = this._createPlaneIcon(track, flight, isSelected);
           const marker = L.marker(latlng, { icon }).addTo(this.map);
 
-        marker.on('click', () => {
-          selectedAircraft.value = key;
-        });
+          marker.on('click', () => {
+            selectedAircraft.value = key;
+          });
 
           this.planes.set(key, { marker, lastUpdated: Date.now(), record: rec });
         }
@@ -1475,7 +1478,7 @@
 
       renderFlightHistory(flights) {
         this.clearFlightHistory();
-        
+
         for (let i = 0; i < flights.length; i++) {
           this._renderHistoryPath(flights[i].segments, i);
         }
@@ -1485,20 +1488,20 @@
         if (!Array.isArray(coords) || coords.length < 2) return;
 
         this._renderLine(coords, '#4a5568');
-      const isSmallGap = (t1, t2) => Math.abs(new Date(t1).getTime() - new Date(t2).getTime()) < 60_000;
+        const isSmallGap = (t1, t2) => Math.abs(new Date(t1).getTime() - new Date(t2).getTime()) < 60_000;
 
-      let richSegments = [coords[0]];
-      for (let i = 1; i < coords.length; ++i) {
-        const a = coords[i - 1];
-        const b = coords[i];
-        if (isSmallGap(a.time, b.time)) {
-          if (!richSegments.length) richSegments.push(a);
-          richSegments.push(b);
-        } else {
+        let richSegments = [coords[0]];
+        for (let i = 1; i < coords.length; ++i) {
+          const a = coords[i - 1];
+          const b = coords[i];
+          if (isSmallGap(a.time, b.time)) {
+            if (!richSegments.length) richSegments.push(a);
+            richSegments.push(b);
+          } else {
             this._renderLine(richSegments, colors[colorIndex % colors.length]);
-          richSegments = [];
+            richSegments = [];
+          }
         }
-      }
         if (richSegments.length) this._renderLine(richSegments, colors[colorIndex % colors.length]);
       }
 
@@ -1507,7 +1510,7 @@
           .map(c => (c && Number.isFinite(c.lat) && Number.isFinite(c.lon)) ? [c.lat, c.lon] : null)
           .filter(c => c !== null);
         if (latlngs.length < 2) return;
-        
+
         const line = L.polyline(latlngs, { color, weight: 3, opacity: 0.8 }).addTo(this.map);
         this.historyLayers.push(line);
       }
@@ -1571,7 +1574,7 @@
         for (const [icao] of this.planes) {
           this.removeAircraft(icao);
         }
-        
+
         // Remove Leaflet map
         if (this.map) {
           this.map.remove();
@@ -1583,7 +1586,7 @@
     // ============================================
     // Map Adapter Factory & Initialization
     // ============================================
-    
+
     function createMapAdapter(type, containerId) {
       switch (type) {
         case 'cesium':
@@ -1599,7 +1602,7 @@
     let mapAdapter = createMapAdapter(MAP_TYPE, 'cesiumContainer');
     mapAdapter.initialize();
     console.info(`✈️  Flugzeug Radar - Map adapter initialized: ${MAP_TYPE.toUpperCase()}`);
-    
+
     // Function to switch map types dynamically
     function switchMapType(newType) {
       if (newType === MAP_TYPE) {
@@ -1608,34 +1611,34 @@
       }
 
       console.info(`🔄 Switching map from ${MAP_TYPE} to ${newType}...`);
-      
+
       // Clear current selection
       selectedAircraft.value = null;
-      
+
       // Store aircraft data before destroying old adapter
       const oldPlanes = new Map(mapAdapter.getAllAircraft());
-      
+
       // Destroy old adapter (cleans up DOM elements, event handlers, etc.)
       mapAdapter.destroy();
-      
+
       // Update map type
       MAP_TYPE = newType;
-      
+
       // Create and initialize new adapter
       mapAdapter = createMapAdapter(MAP_TYPE, 'cesiumContainer');
       mapAdapter.initialize();
-      
+
       // Re-add all aircraft to the new map
       for (const [icao, planeData] of oldPlanes.entries()) {
         mapAdapter.addOrUpdateAircraft(planeData.record);
       }
-      
+
       // Emit event to update UI (buttons, etc.)
       eventBus.emit('map-type-changed', MAP_TYPE);
-      
+
       console.info(`✅ Switched to ${MAP_TYPE.toUpperCase()} map successfully`);
     }
-    
+
     // Emit initial map type
     eventBus.emit('map-type-changed', MAP_TYPE);
 
@@ -1710,7 +1713,7 @@
     // ============================================
     // WebSocket Connection
     // ============================================
-    const wsUrl = `ws://localhost:${WS_PORT}/info`;
+    const wsUrl = `ws://${window.location.hostname}:${WS_PORT}/info`;
     let ws;
     let lastMsgAt = 0;
 
@@ -1775,8 +1778,8 @@
     const observeFirst = setInterval(() => {
       if (mapAdapter.getAllAircraft().size > 0 && first) {
         mapAdapter.focusOnFirstAircraft();
-          first = false;
-          clearInterval(observeFirst);
+        first = false;
+        clearInterval(observeFirst);
       }
     }, 1000);
 
