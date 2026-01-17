@@ -154,8 +154,6 @@
     // ============================================
     // Global State
     // ============================================
-    const WS_PORT = 4000;
-    const UPDATE_INTERVAL_MS = 1000;
     const STALE_MS = 30_000;
 
     // Configuration: Map implementation ('leaflet' or 'cesium')
@@ -165,7 +163,7 @@
     const eventBus = new Observable();
     const selectedAircraft = new ObservableValue(null);
     const wsConnected = new ObservableValue(false);
-    const aircraftHistory = new Map(); // icao -> FlightHistory[]
+    const aircraftICAOs = new Set();
     const aircraftPhotosCache = new Map(); // icao -> { photo, photographer, link } | null
     const colors = ['#00d9ff', '#3fb950', '#d29922'];
 
@@ -718,12 +716,10 @@
           this.updateAircraftCard(icao);
         });
 
-        eventBus.on('history', (payload) => {
-          // payload already processed by main handler, use aircraftHistory
-          // Use setTimeout to ensure main handler runs first
+        eventBus.on('icaos', (payload) => {
           setTimeout(() => {
             this.updateIcaoList();
-            this.totalHistory.textContent = aircraftHistory.size;
+            this.totalHistory.textContent = aircraftICAOs.size;
           }, 0);
         });
 
@@ -738,7 +734,7 @@
 
       updateIcaoList() {
         const currentValue = this.icaoSelect.value;
-        const icaos = [...aircraftHistory.keys()].sort();
+        const icaos = [...aircraftICAOs.keys()].sort();
 
         this.icaoSelect.innerHTML = '<option value="">— ICAO wählen —</option>';
         for (const icao of icaos) {
@@ -1666,10 +1662,6 @@
         lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => ({ lat: s.lat, lon: s.lon, alt: s.altitude })));
       } catch (e) {
         console.error('Error fetching history:', e);
-        // Fallback to local history
-        const flights = aircraftHistory.get(icao) || [];
-        mapAdapter.renderFlightHistory(flights);
-        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => ({ lat: s.lat, lon: s.lon, alt: s.altitude })));
       }
     };
 
@@ -1679,17 +1671,6 @@
       } else {
         mapAdapter.focusOnAircraft(icao);
       }
-    };
-
-    // ============================================
-    // Aircraft Array Processing
-    // ============================================
-    const onAircraftArray = (arr) => {
-      for (const rec of arr) {
-        mapAdapter.addOrUpdateAircraft(rec);
-      }
-
-      mapAdapter.cleanup();
     };
 
     // ============================================
@@ -1713,7 +1694,7 @@
     // ============================================
     // WebSocket Connection
     // ============================================
-    const wsUrl = `ws://${window.location.hostname}:${WS_PORT}/info`;
+    const wsUrl = `ws://${window.location.host}/info`;
     let ws;
     let lastMsgAt = 0;
 
@@ -1733,8 +1714,8 @@
           if (parsed.type === 'aircrafts') {
             lastMsgAt = Date.now();
             eventBus.emit('aircrafts', parsed.payload);
-          } else if (parsed.type === 'history') {
-            eventBus.emit('history', parsed.payload);
+          } else if (parsed.type === 'icaos') {
+            eventBus.emit('icaos', parsed.payload);
           }
         } catch (e) {
           console.error('Bad WS data', e);
@@ -1758,13 +1739,18 @@
     // Event Handlers
     // ============================================
     eventBus.on('aircrafts', (payload) => {
-      onAircraftArray(payload);
+      for (const rec of payload) {
+        mapAdapter.addOrUpdateAircraft(rec);
+        aircraftICAOs.has(rec.icao) || aircraftICAOs.add(rec.icao);
+      }
+
+      mapAdapter.cleanup();
     });
 
-    eventBus.on('history', (payload) => {
-      aircraftHistory.clear();
-      Object.keys(payload).forEach(icao => {
-        aircraftHistory.set(icao, payload[icao]);
+    eventBus.on('icaos', (payload) => {
+      aircraftICAOs.clear();
+      [...payload].forEach(icao => {
+        aircraftICAOs.add(icao);
       });
     });
 

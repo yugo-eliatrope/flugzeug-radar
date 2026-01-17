@@ -49,8 +49,11 @@ export class DatabaseManager {
     });
   }
 
-  public async getAllAircraftData(): Promise<AircraftData[]> {
-    const rawData = await this.getAircraftData();
-    return rawData.filter((data) => data.lat && data.lon);
+  public async getAllIcaos(): Promise<string[]> {
+    const rawData = await this.prisma.aircraftData.findMany({
+      select: { icao: true },
+      distinct: ['icao'],
+    });
+    return rawData.map((item) => item.icao);
   }
 }
