@@ -2,16 +2,16 @@ import crypto from 'crypto';
 import http from 'http';
 import path from 'path';
 
-import { ILogger } from './logger';
-import { AircraftData } from './domain';
 import { formAircraftHistoryStore } from './aircraft-history';
+import { AircraftData } from './domain';
+import { ILogger } from './logger';
 
 interface IStateProvider {
   getAircraftData: (params: { icao: string }) => Promise<AircraftData[]>;
 }
 
 interface IStatisticsProvider {
-  coverage: () => Promise<{ lat: number; lon: number }[]>;
+  coverage: (spotName: string) => Promise<{ lat: number; lon: number }[]>;
 }
 
 type Config = {
@@ -112,7 +112,7 @@ export class HttpServer {
         break;
       }
       case '/statistics': {
-        await this.handleStatisticsRequest(res);
+        await this.handleStatisticsRequest(req, res);
         break;
       }
       default: {
@@ -175,12 +175,19 @@ export class HttpServer {
     res.end();
   };
 
-  private handleStatisticsRequest = async (res: http.ServerResponse) => {
+  private handleStatisticsRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const url = new URL(`http://localhost${req.url}`);
+    const spotName = url.searchParams.get('spotName');
+    if (!spotName) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'Spot name is required' }));
+      return;
+    }
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 200;
-    const coverage = await this.statisticsProvider.coverage();
+    const coverage = await this.statisticsProvider.coverage(spotName);
     res.end(JSON.stringify({ coverage }));
-  }
+  };
 
   private handleAircraftDataRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(`http://localhost${req.url}`);

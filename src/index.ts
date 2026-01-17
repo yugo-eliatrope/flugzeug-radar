@@ -1,17 +1,16 @@
-import { WebSocketServer } from './ws-server';
-
+import { AircraftDataRepeater } from './aircraft-data-repeater';
 import { config } from './config';
+import { DatabaseManager } from './database-manager';
+import { AircraftData, UnsavedAircraftData } from './domain';
 import { EventBus } from './event-bus';
+import { readAllFilesInDir } from './fs';
+import { HttpServer } from './http-server';
 import { Logger } from './logger';
 import { parseSBSLine } from './parser';
 import { SBSClient } from './sbs-client';
 import { AircraftState } from './state';
-import { DatabaseManager } from './database-manager';
-import { AircraftDataRepeater } from './aircraft-data-repeater';
-import { readAllFilesInDir } from './fs';
-import { HttpServer } from './http-server';
-import { AircraftData, UnsavedAircraftData } from './domain';
 import { StatisticsManager } from './statisticsManager';
+import { WebSocketServer } from './ws-server';
 
 const staticFilesPromise = readAllFilesInDir('./public');
 
@@ -20,7 +19,7 @@ const AIRCRAFT_DATA_SAVE_INTERVAL_MS = 7_000;
 const repeatParamFlag = '--repeatFrom';
 
 const parseRepeatParam = (params: string[]) => {
-  const line = params.find(p => p.startsWith(repeatParamFlag));
+  const line = params.find((p) => p.startsWith(repeatParamFlag));
   if (line) {
     const [, value] = line.split('=');
     return value;
@@ -34,13 +33,14 @@ const startUp = async () => {
   const logger = new Logger();
   const database = new DatabaseManager(logger.child('Database'));
   await database.connect();
+  const spotNames = await database.getAllSpotNames();
   const eventBus = new EventBus();
   const savingToDB = !repeatParam;
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spotName ? `Spot name set to "${config.spotName}"` : 'No spot name configured');
 
-  const statisticsManager = new StatisticsManager(config.spotName, database);
+  const statisticsManager = new StatisticsManager(spotNames, database);
 
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },
@@ -50,11 +50,7 @@ const startUp = async () => {
     await staticFilesPromise
   );
 
-  const wsServer = new WebSocketServer(
-    database,
-    logger.child('WebSocketServer'),
-    httpServer.isAuthenticated
-  );
+  const wsServer = new WebSocketServer(database, logger.child('WebSocketServer'), httpServer.isAuthenticated);
 
   httpServer.server.on('upgrade', (request, socket, head) => {
     wsServer.handleUpgrade(request, socket, head);
@@ -68,7 +64,7 @@ const startUp = async () => {
   const state = new AircraftState(config.state.maxAgeMs, config.spotName, logger.child('State'), eventBus);
 
   const interval = setInterval(() => {
-    wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() })
+    wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() });
     state.cleanup();
   }, 1000);
 

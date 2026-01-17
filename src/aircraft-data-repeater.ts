@@ -1,4 +1,5 @@
 import { AircraftData } from '@prisma/client';
+
 import { DatabaseManager } from './database-manager';
 import { EventBus } from './event-bus';
 import { ILogger } from './logger';
@@ -10,14 +11,15 @@ export class AircraftDataRepeater {
     startDate: string,
     private readonly dbManager: DatabaseManager,
     private readonly logger: ILogger,
-    private readonly eventBus: EventBus,
+    private readonly eventBus: EventBus
   ) {
     this.startDate = new Date(startDate);
   }
 
   public start() {
-    this.logger.info('Starting up...')
-    this.dbManager.getAircraftData({ from: this.startDate })
+    this.logger.info('Starting up...');
+    this.dbManager
+      .getAircraftData({ from: this.startDate })
       .then((data) => {
         this.logger.info(`Repeating ${data.length} items from ${this.startDate.toISOString()}`);
         this.emit(data);

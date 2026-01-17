@@ -73,6 +73,23 @@
     .cesium-widget-credits {
       display: none !important;
     }
+
+    /* Leaflet coverage tooltip styling */
+    .coverage-tooltip {
+      background: rgba(18, 23, 31, 0.95) !important;
+      border: 1px solid #00d9ff !important;
+      border-radius: 6px !important;
+      color: #e6edf3 !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      padding: 4px 8px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+    }
+
+    .coverage-tooltip::before {
+      border-top-color: #00d9ff !important;
+    }
   </style>
 </head>
 
@@ -165,6 +182,7 @@
     const wsConnected = new ObservableValue(false);
     const aircraftICAOs = new Set();
     const aircraftPhotosCache = new Map(); // icao -> { photo, photographer, link } | null
+    const coverageCache = new Map(); // spotName -> { lat, lon }[]
     const colors = ['#00d9ff', '#3fb950', '#d29922'];
 
     // ============================================
@@ -1398,16 +1416,20 @@
       }
 
       // Coverage methods (not supported in 3D mode, stubs for consistency)
-      showCoverage(points) {
+      showCoverage(spotName, points) {
         // Coverage visualization not supported in 3D mode
       }
 
-      hideCoverage() {
+      hideAllCoverage() {
         // Coverage visualization not supported in 3D mode
       }
 
       hasCoverage() {
         return false;
+      }
+
+      getCoverageSpots() {
+        return [];
       }
 
       destroy() {
@@ -1440,7 +1462,7 @@
         super(containerId);
         this.map = null;
         this.historyLayers = [];
-        this.coverageLayer = null;
+        this.coverageLayers = new Map(); // spotName -> layer
       }
 
       initialize() {
@@ -1626,29 +1648,48 @@
         }
       }
 
-      showCoverage(points) {
-        this.hideCoverage();
+      showCoverage(spotName, points) {
+        // Remove existing layer for this spot if it exists
+        if (this.coverageLayers.has(spotName)) {
+          const layer = this.coverageLayers.get(spotName);
+          this.map.removeLayer(layer);
+          this.coverageLayers.delete(spotName);
+        }
+
         if (points && points.length > 0) {
           const latlngs = points.map(p => [p.lat, p.lon]);
-          this.coverageLayer = L.polygon(latlngs, {
+          const layer = L.polygon(latlngs, {
             color: '#00d9ff',
             fillColor: '#00d9ff',
             fillOpacity: 0.15,
             weight: 2,
             opacity: 0.6
           }).addTo(this.map);
+          
+          // Add tooltip with spot name
+          layer.bindTooltip(spotName, {
+            permanent: false,
+            direction: 'center',
+            className: 'coverage-tooltip'
+          });
+          
+          this.coverageLayers.set(spotName, layer);
         }
       }
 
-      hideCoverage() {
-        if (this.coverageLayer) {
-          this.map.removeLayer(this.coverageLayer);
-          this.coverageLayer = null;
+      hideAllCoverage() {
+        for (const [spotName, layer] of this.coverageLayers.entries()) {
+          this.map.removeLayer(layer);
         }
+        this.coverageLayers.clear();
       }
 
       hasCoverage() {
-        return this.coverageLayer !== null;
+        return this.coverageLayers.size > 0;
+      }
+
+      getCoverageSpots() {
+        return Array.from(this.coverageLayers.keys());
       }
 
       destroy() {
@@ -1699,8 +1740,8 @@
       selectedAircraft.value = null;
 
       // Hide coverage if shown (only applicable when switching from leaflet)
-      if (MAP_TYPE === 'leaflet' && mapAdapter.hideCoverage) {
-        mapAdapter.hideCoverage();
+      if (MAP_TYPE === 'leaflet' && mapAdapter.hideAllCoverage) {
+        mapAdapter.hideAllCoverage();
         // Reset button state
         const sidePanel = document.querySelector('side-panel');
         const coverageBtn = sidePanel?.shadowRoot?.getElementById('coverage-btn');
@@ -1780,30 +1821,70 @@
 
       // Check if coverage is currently shown
       if (mapAdapter.hasCoverage && mapAdapter.hasCoverage()) {
-        // Hide coverage
-        if (mapAdapter.hideCoverage) {
-          mapAdapter.hideCoverage();
+        // Hide all coverage
+        if (mapAdapter.hideAllCoverage) {
+          mapAdapter.hideAllCoverage();
         }
         if (coverageBtn) {
           coverageBtn.classList.remove('active');
         }
       } else {
-        // Fetch and show coverage
-        try {
-          const response = await fetch('/statistics');
-          if (!response.ok) throw new Error('Failed to fetch statistics');
-          const data = await response.json();
-          
-          if (data.coverage && data.coverage.length > 0) {
+        // Ask for spot name
+        const spotName = prompt('Введите название точки для отображения покрытия радара:');
+        
+        if (!spotName || spotName.trim() === '') {
+          return; // User cancelled or entered empty name
+        }
+
+        const trimmedSpotName = spotName.trim();
+
+        // Check cache first
+        if (coverageCache.has(trimmedSpotName)) {
+          const cachedCoverage = coverageCache.get(trimmedSpotName);
+          if (cachedCoverage && cachedCoverage.length > 0) {
             if (mapAdapter.showCoverage) {
-              mapAdapter.showCoverage(data.coverage);
+              mapAdapter.showCoverage(trimmedSpotName, cachedCoverage);
             }
             if (coverageBtn) {
               coverageBtn.classList.add('active');
             }
+          } else {
+            alert(`Нет данных покрытия для точки "${trimmedSpotName}"`);
+          }
+          return;
+        }
+
+        // Fetch from server
+        try {
+          const response = await fetch(`/statistics?spotName=${encodeURIComponent(trimmedSpotName)}`);
+          
+          if (response.status === 400) {
+            alert('Ошибка: не указано название точки');
+            return;
+          }
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch statistics');
+          }
+          
+          const data = await response.json();
+          
+          // Cache the result
+          coverageCache.set(trimmedSpotName, data.coverage || []);
+          
+          if (data.coverage && data.coverage.length > 0) {
+            if (mapAdapter.showCoverage) {
+              mapAdapter.showCoverage(trimmedSpotName, data.coverage);
+            }
+            if (coverageBtn) {
+              coverageBtn.classList.add('active');
+            }
+          } else {
+            alert(`Нет данных покрытия для точки "${trimmedSpotName}"`);
           }
         } catch (error) {
           console.error('Error fetching radar coverage:', error);
+          alert('Ошибка при загрузке данных покрытия радара');
         }
       }
     };

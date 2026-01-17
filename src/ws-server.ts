@@ -85,8 +85,8 @@ export class WebSocketServer {
     }
   };
 
-  public close = (): Promise<void> => {
-    return new Promise((resolve) => {
+  public close = (): Promise<void> =>
+    new Promise((resolve) => {
       for (const client of this.clients) {
         client.close();
       }
@@ -96,5 +96,4 @@ export class WebSocketServer {
         resolve();
       });
     });
-  };
 }

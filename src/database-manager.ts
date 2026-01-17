@@ -64,4 +64,12 @@ export class DatabaseManager {
     });
     return rawData.filter((item): item is { lat: number; lon: number } => item.lat !== null && item.lon !== null);
   }
+
+  public async getAllSpotNames(): Promise<string[]> {
+    const rawData = await this.prisma.aircraftData.findMany({
+      select: { spotName: true },
+      distinct: ['spotName'],
+    });
+    return rawData.map((item) => item.spotName).filter((item): item is string => item !== null);
+  }
 }

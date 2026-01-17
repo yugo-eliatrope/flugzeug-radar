@@ -1,6 +1,6 @@
 import { SBSMessage, UnsavedAircraftData } from './domain';
-import { ILogger } from './logger';
 import { EventBus } from './event-bus';
+import { ILogger } from './logger';
 
 export class AircraftState {
   private readonly map = new Map<string, UnsavedAircraftData>();
@@ -10,7 +10,7 @@ export class AircraftState {
     private readonly spotName: string | null,
     private readonly logger: ILogger,
     private readonly eventBus: EventBus
-  ) { }
+  ) {}
 
   public update(msg: SBSMessage) {
     if (!msg.icao) return;

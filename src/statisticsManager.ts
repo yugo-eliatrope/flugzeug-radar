@@ -6,10 +6,16 @@ interface Database {
 
 export class StatisticsManager {
   public concavity: number = 2;
-  constructor(private readonly spotName: string, private readonly db: Database) {}
+  constructor(
+    private readonly spotNames: string[],
+    private readonly db: Database
+  ) {}
 
-  public coverage = async (): Promise<{ lat: number; lon: number }[]> => {
-    const dots = await this.db.getAllDots(this.spotName);
+  public coverage = async (spotName: string): Promise<{ lat: number; lon: number }[]> => {
+    if (!this.spotNames.includes(spotName)) {
+      return [];
+    }
+    const dots = await this.db.getAllDots(spotName);
     if (dots.length < 3) {
       return [];
     }
