@@ -10,6 +10,10 @@ interface IStateProvider {
   getAircraftData: (params: { icao: string }) => Promise<AircraftData[]>;
 }
 
+interface IStatisticsProvider {
+  coverage: () => Promise<{ lat: number; lon: number }[]>;
+}
+
 type Config = {
   port: number;
   authPassword: string | null;
@@ -23,6 +27,7 @@ export class HttpServer {
     private readonly config: Config,
     private readonly logger: ILogger,
     private readonly stateProvider: IStateProvider,
+    private readonly statisticsProvider: IStatisticsProvider,
     private readonly staticFiles: Record<string, Buffer>
   ) {
     this.server = http.createServer(async (req, res) => {
@@ -103,7 +108,11 @@ export class HttpServer {
         break;
       }
       case '/aircraft-data': {
-        this.handleAircraftDataRequest(req,res);
+        this.handleAircraftDataRequest(req, res);
+        break;
+      }
+      case '/statistics': {
+        await this.handleStatisticsRequest(res);
         break;
       }
       default: {
@@ -165,6 +174,13 @@ export class HttpServer {
     res.write(this.staticFiles['public/app.html']);
     res.end();
   };
+
+  private handleStatisticsRequest = async (res: http.ServerResponse) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 200;
+    const coverage = await this.statisticsProvider.coverage();
+    res.end(JSON.stringify({ coverage }));
+  }
 
   private handleAircraftDataRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(`http://localhost${req.url}`);

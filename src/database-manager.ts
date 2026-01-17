@@ -56,4 +56,12 @@ export class DatabaseManager {
     });
     return rawData.map((item) => item.icao);
   }
+
+  public async getAllDots(spotName: string): Promise<{ lat: number; lon: number }[]> {
+    const rawData = await this.prisma.aircraftData.findMany({
+      where: { spotName, lat: { not: null }, lon: { not: null } },
+      select: { lat: true, lon: true },
+    });
+    return rawData.filter((item): item is { lat: number; lon: number } => item.lat !== null && item.lon !== null);
+  }
 }

@@ -11,6 +11,7 @@ import { AircraftDataRepeater } from './aircraft-data-repeater';
 import { readAllFilesInDir } from './fs';
 import { HttpServer } from './http-server';
 import { AircraftData, UnsavedAircraftData } from './domain';
+import { StatisticsManager } from './statisticsManager';
 
 const staticFilesPromise = readAllFilesInDir('./public');
 
@@ -39,10 +40,13 @@ const startUp = async () => {
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spotName ? `Spot name set to "${config.spotName}"` : 'No spot name configured');
 
+  const statisticsManager = new StatisticsManager(config.spotName, database);
+
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },
     logger.child('HTTPServer'),
     database,
+    statisticsManager,
     await staticFilesPromise
   );
 

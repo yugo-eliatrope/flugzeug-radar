@@ -510,6 +510,7 @@
               border-top: 1px solid #30363d;
               display: flex;
               justify-content: space-between;
+              align-items: center;
             }
 
             .stat {
@@ -529,6 +530,38 @@
               text-transform: uppercase;
               letter-spacing: 0.5px;
               margin-top: 4px;
+            }
+
+            /* Coverage button */
+            .coverage-btn {
+              width: 40px;
+              height: 40px;
+              background: #1a2029;
+              border: 1px solid #30363d;
+              border-radius: 8px;
+              color: #8b949e;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: all 0.2s;
+            }
+
+            .coverage-btn:hover {
+              background: rgba(0, 217, 255, 0.1);
+              border-color: #00d9ff;
+              color: #00d9ff;
+            }
+
+            .coverage-btn.active {
+              background: rgba(0, 217, 255, 0.15);
+              border-color: #00d9ff;
+              color: #00d9ff;
+            }
+
+            .coverage-btn svg {
+              width: 20px;
+              height: 20px;
             }
 
             /* Map Switcher */
@@ -642,6 +675,13 @@
                 <div class="stat-value" id="total-aircraft">0</div>
                 <div class="stat-label">Live</div>
               </div>
+              <button class="coverage-btn" id="coverage-btn" title="Radarabdeckung anzeigen" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="6"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+              </button>
               <div class="stat">
                 <div class="stat-value" id="total-history">0</div>
                 <div class="stat-label">Im Verlauf</div>
@@ -683,6 +723,7 @@
         this.totalHistory = this.shadowRoot.getElementById('total-history');
         this.mapBtnLeaflet = this.shadowRoot.getElementById('map-btn-leaflet');
         this.mapBtnCesium = this.shadowRoot.getElementById('map-btn-cesium');
+        this.coverageBtn = this.shadowRoot.getElementById('coverage-btn');
 
         this.icaoSelect.addEventListener('change', (e) => {
           const value = e.target.value;
@@ -698,10 +739,17 @@
           switchMapType('cesium');
         });
 
+        // Coverage button handler
+        this.coverageBtn.addEventListener('click', () => {
+          toggleRadarCoverage();
+        });
+
         // Update active state based on current map type
         eventBus.on('map-type-changed', (type) => {
           this.mapBtnLeaflet.classList.toggle('active', type === 'leaflet');
           this.mapBtnCesium.classList.toggle('active', type === 'cesium');
+          // Show coverage button only in 2D (leaflet) mode
+          this.coverageBtn.style.display = type === 'leaflet' ? 'flex' : 'none';
         });
       }
 
@@ -1349,6 +1397,19 @@
         }
       }
 
+      // Coverage methods (not supported in 3D mode, stubs for consistency)
+      showCoverage(points) {
+        // Coverage visualization not supported in 3D mode
+      }
+
+      hideCoverage() {
+        // Coverage visualization not supported in 3D mode
+      }
+
+      hasCoverage() {
+        return false;
+      }
+
       destroy() {
         // Clean up all entities
         this.clearFlightHistory();
@@ -1379,6 +1440,7 @@
         super(containerId);
         this.map = null;
         this.historyLayers = [];
+        this.coverageLayer = null;
       }
 
       initialize() {
@@ -1564,6 +1626,31 @@
         }
       }
 
+      showCoverage(points) {
+        this.hideCoverage();
+        if (points && points.length > 0) {
+          const latlngs = points.map(p => [p.lat, p.lon]);
+          this.coverageLayer = L.polygon(latlngs, {
+            color: '#00d9ff',
+            fillColor: '#00d9ff',
+            fillOpacity: 0.15,
+            weight: 2,
+            opacity: 0.6
+          }).addTo(this.map);
+        }
+      }
+
+      hideCoverage() {
+        if (this.coverageLayer) {
+          this.map.removeLayer(this.coverageLayer);
+          this.coverageLayer = null;
+        }
+      }
+
+      hasCoverage() {
+        return this.coverageLayer !== null;
+      }
+
       destroy() {
         // Clean up all markers and layers
         this.clearFlightHistory();
@@ -1610,6 +1697,17 @@
 
       // Clear current selection
       selectedAircraft.value = null;
+
+      // Hide coverage if shown (only applicable when switching from leaflet)
+      if (MAP_TYPE === 'leaflet' && mapAdapter.hideCoverage) {
+        mapAdapter.hideCoverage();
+        // Reset button state
+        const sidePanel = document.querySelector('side-panel');
+        const coverageBtn = sidePanel?.shadowRoot?.getElementById('coverage-btn');
+        if (coverageBtn) {
+          coverageBtn.classList.remove('active');
+        }
+      }
 
       // Store aircraft data before destroying old adapter
       const oldPlanes = new Map(mapAdapter.getAllAircraft());
@@ -1670,6 +1768,43 @@
         mapAdapter.focusOnHistory(lastLoadedHistoryCoords);
       } else {
         mapAdapter.focusOnAircraft(icao);
+      }
+    };
+
+    const toggleRadarCoverage = async () => {
+      // Only works with Leaflet adapter
+      if (MAP_TYPE !== 'leaflet') return;
+
+      const sidePanel = document.querySelector('side-panel');
+      const coverageBtn = sidePanel?.shadowRoot?.getElementById('coverage-btn');
+
+      // Check if coverage is currently shown
+      if (mapAdapter.hasCoverage && mapAdapter.hasCoverage()) {
+        // Hide coverage
+        if (mapAdapter.hideCoverage) {
+          mapAdapter.hideCoverage();
+        }
+        if (coverageBtn) {
+          coverageBtn.classList.remove('active');
+        }
+      } else {
+        // Fetch and show coverage
+        try {
+          const response = await fetch('/statistics');
+          if (!response.ok) throw new Error('Failed to fetch statistics');
+          const data = await response.json();
+          
+          if (data.coverage && data.coverage.length > 0) {
+            if (mapAdapter.showCoverage) {
+              mapAdapter.showCoverage(data.coverage);
+            }
+            if (coverageBtn) {
+              coverageBtn.classList.add('active');
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching radar coverage:', error);
+        }
       }
     };
 

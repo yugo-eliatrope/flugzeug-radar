@@ -32,5 +32,5 @@ export const config = {
   database: {
     url: getEnvVar('DATABASE_URL'),
   },
-  spotName: process.env['SPOT_NAME'] || null,
+  spotName: getEnvVar('SPOT_NAME'),
 } as const;
