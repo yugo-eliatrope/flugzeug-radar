@@ -32,5 +32,9 @@ export const config = {
   database: {
     url: getEnvVar('DATABASE_URL'),
   },
+  statistics: {
+    mapPrecision: getEnvVarAsNumber('STATISTICS_MAP_PRECISION'),
+    minDotsInCellAllowed: getEnvVarAsNumber('STATISTICS_MIN_DOTS_IN_CELL_ALLOWED'),
+  },
   spotName: getEnvVar('SPOT_NAME'),
 } as const;
