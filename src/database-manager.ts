@@ -57,12 +57,12 @@ export class DatabaseManager {
     return rawData.map((item) => item.icao);
   }
 
-  public async getAllDots(spotName: string): Promise<{ lat: number; lon: number }[]> {
+  public async getAllDots(spotName: string): Promise<{ lat: number; lon: number; altitude: number }[]> {
     const rawData = await this.prisma.aircraftData.findMany({
-      where: { spotName, lat: { not: null }, lon: { not: null } },
-      select: { lat: true, lon: true },
+      where: { spotName, lat: { not: null }, lon: { not: null }, altitude: { not: null } },
+      select: { lat: true, lon: true, altitude: true },
     });
-    return rawData.filter((item): item is { lat: number; lon: number } => item.lat !== null && item.lon !== null);
+    return rawData.filter((item): item is { lat: number; lon: number; altitude: number } => item.lat !== null && item.lon !== null && item.altitude !== null);
   }
 
   public async getAllSpotNames(): Promise<string[]> {

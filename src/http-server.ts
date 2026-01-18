@@ -3,7 +3,7 @@ import http from 'http';
 import path from 'path';
 
 import { formAircraftHistoryStore } from './aircraft-history';
-import { AircraftData } from './domain';
+import { AircraftData, Coverage } from './domain';
 import { ILogger } from './logger';
 
 interface IStateProvider {
@@ -11,7 +11,7 @@ interface IStateProvider {
 }
 
 interface IStatisticsProvider {
-  coverage: (spotName: string) => Promise<{ lat: number; lon: number }[]>;
+  coverage: (spotName: string) => Promise<Coverage>;
 }
 
 type Config = {
