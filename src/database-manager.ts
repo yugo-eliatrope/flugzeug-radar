@@ -58,8 +58,9 @@ export class DatabaseManager {
   }
 
   public async getAllDots(spotName: string): Promise<{ lat: number; lon: number; altitude: number }[]> {
+    const notNull = { not: null };
     const rawData = await this.prisma.aircraftData.findMany({
-      where: { spotName, lat: { not: null }, lon: { not: null }, altitude: { not: null } },
+      where: { spotName, lat: notNull, lon: notNull, altitude: notNull, flight: notNull, groundSpeed: notNull },
       select: { lat: true, lon: true, altitude: true },
     });
     return rawData.filter((item): item is { lat: number; lon: number; altitude: number } => item.lat !== null && item.lon !== null && item.altitude !== null);
