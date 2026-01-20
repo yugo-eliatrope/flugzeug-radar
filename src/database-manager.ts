@@ -49,8 +49,28 @@ export class DatabaseManager {
     });
   }
 
-  public async getAllAircraftData(): Promise<AircraftData[]> {
-    const rawData = await this.getAircraftData();
-    return rawData.filter((data) => data.lat && data.lon);
+  public async getAllIcaos(): Promise<string[]> {
+    const rawData = await this.prisma.aircraftData.findMany({
+      select: { icao: true },
+      distinct: ['icao'],
+    });
+    return rawData.map((item) => item.icao);
+  }
+
+  public async getAllDots(spotName: string): Promise<{ lat: number; lon: number; altitude: number }[]> {
+    const notNull = { not: null };
+    const rawData = await this.prisma.aircraftData.findMany({
+      where: { spotName, lat: notNull, lon: notNull, altitude: notNull, flight: notNull, groundSpeed: notNull },
+      select: { lat: true, lon: true, altitude: true },
+    });
+    return rawData.filter((item): item is { lat: number; lon: number; altitude: number } => item.lat !== null && item.lon !== null && item.altitude !== null);
+  }
+
+  public async getAllSpotNames(): Promise<string[]> {
+    const rawData = await this.prisma.aircraftData.findMany({
+      select: { spotName: true },
+      distinct: ['spotName'],
+    });
+    return rawData.map((item) => item.spotName).filter((item): item is string => item !== null);
   }
 }

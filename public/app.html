@@ -73,6 +73,247 @@
     .cesium-widget-credits {
       display: none !important;
     }
+
+    /* Leaflet coverage tooltip styling */
+    .coverage-tooltip {
+      background: rgba(18, 23, 31, 0.95) !important;
+      border: 1px solid #00d9ff !important;
+      border-radius: 6px !important;
+      color: #e6edf3 !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      padding: 4px 8px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+    }
+
+    .coverage-tooltip::before {
+      border-top-color: #00d9ff !important;
+    }
+
+    /* Coverage Control Popup */
+    #coverage-popup {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 320px;
+      background: linear-gradient(180deg, #12171f 0%, #0a0e14 100%);
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      z-index: 10000;
+      display: none;
+      overflow: hidden;
+    }
+
+    #coverage-popup.show {
+      display: block;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .coverage-popup-header {
+      padding: 16px 20px;
+      background: rgba(0, 217, 255, 0.05);
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .coverage-popup-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      color: #00d9ff;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .coverage-popup-close {
+      width: 28px;
+      height: 28px;
+      background: transparent;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #8b949e;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .coverage-popup-close:hover {
+      background: rgba(248, 81, 73, 0.1);
+      border-color: #f85149;
+      color: #f85149;
+    }
+
+    .coverage-popup-body {
+      padding: 20px;
+    }
+
+    .coverage-form-group {
+      margin-bottom: 16px;
+    }
+
+    .coverage-form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6e7681;
+      margin-bottom: 8px;
+    }
+
+    .coverage-form-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #1a2029;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #e6edf3;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .coverage-form-input:focus {
+      outline: none;
+      border-color: #00d9ff;
+      box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.15);
+    }
+
+    .coverage-form-input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .coverage-form-button {
+      width: 100%;
+      padding: 10px 16px;
+      background: rgba(0, 217, 255, 0.1);
+      border: 1px solid #00d9ff;
+      border-radius: 6px;
+      color: #00d9ff;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .coverage-form-button:hover:not(:disabled) {
+      background: rgba(0, 217, 255, 0.2);
+      box-shadow: 0 0 12px rgba(0, 217, 255, 0.3);
+    }
+
+    .coverage-form-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .coverage-slider-container {
+      display: none;
+    }
+
+    .coverage-slider-container.show {
+      display: block;
+    }
+
+    .coverage-slider-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .coverage-slider-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6e7681;
+    }
+
+    .coverage-slider-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: #00d9ff;
+    }
+
+    .coverage-slider {
+      width: 100%;
+      height: 6px;
+      background: #1a2029;
+      border-radius: 3px;
+      outline: none;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .coverage-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #00d9ff;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+      transition: all 0.2s;
+    }
+
+    .coverage-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 12px rgba(0, 217, 255, 0.8);
+    }
+
+    .coverage-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: #00d9ff;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+      transition: all 0.2s;
+    }
+
+    .coverage-slider::-moz-range-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 12px rgba(0, 217, 255, 0.8);
+    }
+
+    .coverage-spot-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #8b949e;
+      margin-bottom: 16px;
+      padding: 8px 12px;
+      background: rgba(0, 217, 255, 0.05);
+      border-radius: 6px;
+      border: 1px solid rgba(0, 217, 255, 0.2);
+    }
+
+    .coverage-loading {
+      text-align: center;
+      color: #6e7681;
+      font-size: 12px;
+      padding: 8px 0;
+    }
   </style>
 </head>
 
@@ -80,6 +321,57 @@
   <div id="app-container">
     <side-panel></side-panel>
     <div id="cesiumContainer"></div>
+  </div>
+
+  <!-- Coverage Control Popup -->
+  <div id="coverage-popup">
+    <div class="coverage-popup-header">
+      <div class="coverage-popup-title">Радар покрытие</div>
+      <button class="coverage-popup-close" id="coverage-popup-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="coverage-popup-body">
+      <!-- Form for spot name input -->
+      <div id="coverage-form">
+        <div class="coverage-form-group">
+          <label class="coverage-form-label" for="spot-name-input">Название точки</label>
+          <input 
+            type="text" 
+            id="spot-name-input" 
+            class="coverage-form-input" 
+            placeholder="Введите название точки..."
+          />
+        </div>
+        <button id="coverage-submit-btn" class="coverage-form-button">
+          Загрузить покрытие
+        </button>
+        <div id="coverage-loading" class="coverage-loading" style="display: none;">
+          Загрузка...
+        </div>
+      </div>
+
+      <!-- Slider for height selection -->
+      <div id="coverage-slider-container" class="coverage-slider-container">
+        <div class="coverage-spot-name" id="coverage-current-spot"></div>
+        <div class="coverage-slider-info">
+          <span class="coverage-slider-label">Максимальная высота</span>
+          <span class="coverage-slider-value" id="coverage-height-value">2000 м</span>
+        </div>
+        <input 
+          type="range" 
+          id="coverage-height-slider" 
+          class="coverage-slider" 
+          min="0" 
+          max="5" 
+          value="0" 
+          step="1"
+        />
+      </div>
+    </div>
   </div>
 
   <script>
@@ -154,8 +446,6 @@
     // ============================================
     // Global State
     // ============================================
-    const WS_PORT = 4000;
-    const UPDATE_INTERVAL_MS = 1000;
     const STALE_MS = 30_000;
 
     // Configuration: Map implementation ('leaflet' or 'cesium')
@@ -165,8 +455,9 @@
     const eventBus = new Observable();
     const selectedAircraft = new ObservableValue(null);
     const wsConnected = new ObservableValue(false);
-    const aircraftHistory = new Map(); // icao -> FlightHistory[]
+    const aircraftICAOs = new Set();
     const aircraftPhotosCache = new Map(); // icao -> { photo, photographer, link } | null
+    const coverageCache = new Map(); // spotName -> Coverage { spotName, layers: [{ maxHeight, polygon }] }
     const colors = ['#00d9ff', '#3fb950', '#d29922'];
 
     // ============================================
@@ -512,6 +803,7 @@
               border-top: 1px solid #30363d;
               display: flex;
               justify-content: space-between;
+              align-items: center;
             }
 
             .stat {
@@ -531,6 +823,38 @@
               text-transform: uppercase;
               letter-spacing: 0.5px;
               margin-top: 4px;
+            }
+
+            /* Coverage button */
+            .coverage-btn {
+              width: 40px;
+              height: 40px;
+              background: #1a2029;
+              border: 1px solid #30363d;
+              border-radius: 8px;
+              color: #8b949e;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: all 0.2s;
+            }
+
+            .coverage-btn:hover {
+              background: rgba(0, 217, 255, 0.1);
+              border-color: #00d9ff;
+              color: #00d9ff;
+            }
+
+            .coverage-btn.active {
+              background: rgba(0, 217, 255, 0.15);
+              border-color: #00d9ff;
+              color: #00d9ff;
+            }
+
+            .coverage-btn svg {
+              width: 20px;
+              height: 20px;
             }
 
             /* Map Switcher */
@@ -644,6 +968,13 @@
                 <div class="stat-value" id="total-aircraft">0</div>
                 <div class="stat-label">Live</div>
               </div>
+              <button class="coverage-btn" id="coverage-btn" title="Radarabdeckung anzeigen" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="6"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+              </button>
               <div class="stat">
                 <div class="stat-value" id="total-history">0</div>
                 <div class="stat-label">Im Verlauf</div>
@@ -685,6 +1016,7 @@
         this.totalHistory = this.shadowRoot.getElementById('total-history');
         this.mapBtnLeaflet = this.shadowRoot.getElementById('map-btn-leaflet');
         this.mapBtnCesium = this.shadowRoot.getElementById('map-btn-cesium');
+        this.coverageBtn = this.shadowRoot.getElementById('coverage-btn');
 
         this.icaoSelect.addEventListener('change', (e) => {
           const value = e.target.value;
@@ -700,10 +1032,17 @@
           switchMapType('cesium');
         });
 
+        // Coverage button handler
+        this.coverageBtn.addEventListener('click', () => {
+          toggleRadarCoverage();
+        });
+
         // Update active state based on current map type
         eventBus.on('map-type-changed', (type) => {
           this.mapBtnLeaflet.classList.toggle('active', type === 'leaflet');
           this.mapBtnCesium.classList.toggle('active', type === 'cesium');
+          // Show coverage button only in 2D (leaflet) mode
+          this.coverageBtn.style.display = type === 'leaflet' ? 'flex' : 'none';
         });
       }
 
@@ -718,12 +1057,10 @@
           this.updateAircraftCard(icao);
         });
 
-        eventBus.on('history', (payload) => {
-          // payload already processed by main handler, use aircraftHistory
-          // Use setTimeout to ensure main handler runs first
+        eventBus.on('icaos', (payload) => {
           setTimeout(() => {
             this.updateIcaoList();
-            this.totalHistory.textContent = aircraftHistory.size;
+            this.totalHistory.textContent = aircraftICAOs.size;
           }, 0);
         });
 
@@ -738,7 +1075,7 @@
 
       updateIcaoList() {
         const currentValue = this.icaoSelect.value;
-        const icaos = [...aircraftHistory.keys()].sort();
+        const icaos = [...aircraftICAOs.keys()].sort();
 
         this.icaoSelect.innerHTML = '<option value="">— ICAO wählen —</option>';
         for (const icao of icaos) {
@@ -1353,6 +1690,27 @@
         }
       }
 
+      // Coverage methods (not supported in 3D mode, stubs for consistency)
+      showCoveragePolygon(polygon) {
+        // Coverage visualization not supported in 3D mode
+      }
+
+      hideCoverage() {
+        // Coverage visualization not supported in 3D mode
+      }
+
+      hasCoverage() {
+        return false;
+      }
+
+      setCurrentCoverageSpot(spotName) {
+        // Coverage visualization not supported in 3D mode
+      }
+
+      getCurrentCoverageSpot() {
+        return null;
+      }
+
       destroy() {
         // Clean up all entities
         this.clearFlightHistory();
@@ -1383,6 +1741,8 @@
         super(containerId);
         this.map = null;
         this.historyLayers = [];
+        this.coverageLayer = null; // Current coverage polygon layer
+        this.currentCoverageSpot = null; // Current spot name
       }
 
       initialize() {
@@ -1568,6 +1928,41 @@
         }
       }
 
+      showCoveragePolygon(polygon) {
+        // Remove existing coverage layer if present
+        this.hideCoverage();
+
+        if (polygon && polygon.length > 0) {
+          const latlngs = polygon.map(p => [p.lat, p.lon]);
+          this.coverageLayer = L.polygon(latlngs, {
+            color: '#00d9ff',
+            fillColor: '#00d9ff',
+            fillOpacity: 0.15,
+            weight: 2,
+            opacity: 0.6
+          }).addTo(this.map);
+        }
+      }
+
+      hideCoverage() {
+        if (this.coverageLayer) {
+          this.map.removeLayer(this.coverageLayer);
+          this.coverageLayer = null;
+        }
+      }
+
+      hasCoverage() {
+        return this.coverageLayer !== null;
+      }
+
+      setCurrentCoverageSpot(spotName) {
+        this.currentCoverageSpot = spotName;
+      }
+
+      getCurrentCoverageSpot() {
+        return this.currentCoverageSpot;
+      }
+
       destroy() {
         // Clean up all markers and layers
         this.clearFlightHistory();
@@ -1614,6 +2009,14 @@
 
       // Clear current selection
       selectedAircraft.value = null;
+
+      // Close coverage popup if open when switching from leaflet
+      if (MAP_TYPE === 'leaflet') {
+        const isPopupOpen = coveragePopup.popup?.classList.contains('show');
+        if (isPopupOpen) {
+          coveragePopup.close();
+        }
+      }
 
       // Store aircraft data before destroying old adapter
       const oldPlanes = new Map(mapAdapter.getAllAircraft());
@@ -1666,10 +2069,6 @@
         lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => ({ lat: s.lat, lon: s.lon, alt: s.altitude })));
       } catch (e) {
         console.error('Error fetching history:', e);
-        // Fallback to local history
-        const flights = aircraftHistory.get(icao) || [];
-        mapAdapter.renderFlightHistory(flights);
-        lastLoadedHistoryCoords = flights.flatMap(f => f.segments.map(s => ({ lat: s.lat, lon: s.lon, alt: s.altitude })));
       }
     };
 
@@ -1682,14 +2081,194 @@
     };
 
     // ============================================
-    // Aircraft Array Processing
+    // Coverage Popup Management
     // ============================================
-    const onAircraftArray = (arr) => {
-      for (const rec of arr) {
-        mapAdapter.addOrUpdateAircraft(rec);
-      }
+    const HEIGHT_LEVELS = [2000, 4000, 6000, 8000, 10000, 25000];
+    let currentCoverageData = null; // Store current coverage data
 
-      mapAdapter.cleanup();
+    const coveragePopup = {
+      popup: null,
+      form: null,
+      sliderContainer: null,
+      spotNameInput: null,
+      submitBtn: null,
+      closeBtn: null,
+      slider: null,
+      heightValue: null,
+      currentSpotDisplay: null,
+      loadingText: null,
+
+      init() {
+        this.popup = document.getElementById('coverage-popup');
+        this.form = document.getElementById('coverage-form');
+        this.sliderContainer = document.getElementById('coverage-slider-container');
+        this.spotNameInput = document.getElementById('spot-name-input');
+        this.submitBtn = document.getElementById('coverage-submit-btn');
+        this.closeBtn = document.getElementById('coverage-popup-close');
+        this.slider = document.getElementById('coverage-height-slider');
+        this.heightValue = document.getElementById('coverage-height-value');
+        this.currentSpotDisplay = document.getElementById('coverage-current-spot');
+        this.loadingText = document.getElementById('coverage-loading');
+
+        // Event listeners
+        this.submitBtn.addEventListener('click', () => this.handleSubmit());
+        this.closeBtn.addEventListener('click', () => this.close());
+        this.slider.addEventListener('input', (e) => this.handleSliderChange(e));
+        this.spotNameInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') this.handleSubmit();
+        });
+      },
+
+      open() {
+        this.popup.classList.add('show');
+        this.showForm();
+        this.spotNameInput.focus();
+      },
+
+      close() {
+        this.popup.classList.remove('show');
+        // Hide coverage and reset state
+        if (mapAdapter.hideCoverage) {
+          mapAdapter.hideCoverage();
+        }
+        if (mapAdapter.setCurrentCoverageSpot) {
+          mapAdapter.setCurrentCoverageSpot(null);
+        }
+        currentCoverageData = null;
+        this.reset();
+        
+        // Update button state
+        const sidePanel = document.querySelector('side-panel');
+        const coverageBtn = sidePanel?.shadowRoot?.getElementById('coverage-btn');
+        if (coverageBtn) {
+          coverageBtn.classList.remove('active');
+        }
+      },
+
+      reset() {
+        this.spotNameInput.value = '';
+        this.slider.value = 0;
+        this.showForm();
+      },
+
+      showForm() {
+        this.form.style.display = 'block';
+        this.sliderContainer.classList.remove('show');
+        this.loadingText.style.display = 'none';
+      },
+
+      showSlider() {
+        this.form.style.display = 'none';
+        this.sliderContainer.classList.add('show');
+      },
+
+      setLoading(loading) {
+        this.submitBtn.disabled = loading;
+        this.spotNameInput.disabled = loading;
+        this.loadingText.style.display = loading ? 'block' : 'none';
+      },
+
+      async handleSubmit() {
+        const spotName = this.spotNameInput.value.trim();
+        if (!spotName) return;
+
+        // Check cache first
+        if (coverageCache.has(spotName)) {
+          const cachedData = coverageCache.get(spotName);
+          this.loadCoverageData(spotName, cachedData);
+          return;
+        }
+
+        // Fetch from server
+        this.setLoading(true);
+        try {
+          const response = await fetch(`/statistics?spotName=${encodeURIComponent(spotName)}`);
+          
+          if (response.status === 400) {
+            alert('Ошибка: не указано название точки');
+            this.setLoading(false);
+            return;
+          }
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch statistics');
+          }
+          
+          const data = await response.json();
+          
+          // Cache the result
+          coverageCache.set(spotName, data.coverage);
+          
+          this.loadCoverageData(spotName, data.coverage);
+        } catch (error) {
+          console.error('Error fetching radar coverage:', error);
+          alert('Ошибка при загрузке данных покрытия радара');
+          this.setLoading(false);
+        }
+      },
+
+      loadCoverageData(spotName, coverageData) {
+        this.setLoading(false);
+        
+        if (!coverageData || !coverageData.layers || coverageData.layers.length === 0) {
+          alert(`Нет данных покрытия для точки "${spotName}"`);
+          return;
+        }
+
+        currentCoverageData = coverageData;
+        if (mapAdapter.setCurrentCoverageSpot) {
+          mapAdapter.setCurrentCoverageSpot(spotName);
+        }
+
+        // Show slider UI
+        this.currentSpotDisplay.textContent = `Точка: ${spotName}`;
+        this.slider.max = coverageData.layers.length - 1;
+        this.slider.value = 0;
+        this.showSlider();
+
+        // Display first height level
+        this.updateCoverage(0);
+        
+        // Update button state
+        const sidePanel = document.querySelector('side-panel');
+        const coverageBtn = sidePanel?.shadowRoot?.getElementById('coverage-btn');
+        if (coverageBtn) {
+          coverageBtn.classList.add('active');
+        }
+      },
+
+      handleSliderChange(event) {
+        const index = parseInt(event.target.value);
+        this.updateCoverage(index);
+      },
+
+      updateCoverage(index) {
+        if (!currentCoverageData || !currentCoverageData.layers) return;
+        
+        const heightLevel = currentCoverageData.layers[index];
+        if (!heightLevel) return;
+
+        // Update height display
+        this.heightValue.textContent = `${heightLevel.maxHeight} м`;
+
+        // Update map
+        if (mapAdapter.showCoveragePolygon) {
+          mapAdapter.showCoveragePolygon(heightLevel.polygon);
+        }
+      }
+    };
+
+    const toggleRadarCoverage = () => {
+      // Only works with Leaflet adapter
+      if (MAP_TYPE !== 'leaflet') return;
+
+      const isPopupOpen = coveragePopup.popup.classList.contains('show');
+      
+      if (isPopupOpen) {
+        coveragePopup.close();
+      } else {
+        coveragePopup.open();
+      }
     };
 
     // ============================================
@@ -1713,7 +2292,7 @@
     // ============================================
     // WebSocket Connection
     // ============================================
-    const wsUrl = `ws://${window.location.hostname}:${WS_PORT}/info`;
+    const wsUrl = `ws://${window.location.host}/info`;
     let ws;
     let lastMsgAt = 0;
 
@@ -1733,8 +2312,8 @@
           if (parsed.type === 'aircrafts') {
             lastMsgAt = Date.now();
             eventBus.emit('aircrafts', parsed.payload);
-          } else if (parsed.type === 'history') {
-            eventBus.emit('history', parsed.payload);
+          } else if (parsed.type === 'icaos') {
+            eventBus.emit('icaos', parsed.payload);
           }
         } catch (e) {
           console.error('Bad WS data', e);
@@ -1758,19 +2337,25 @@
     // Event Handlers
     // ============================================
     eventBus.on('aircrafts', (payload) => {
-      onAircraftArray(payload);
+      for (const rec of payload) {
+        mapAdapter.addOrUpdateAircraft(rec);
+        aircraftICAOs.has(rec.icao) || aircraftICAOs.add(rec.icao);
+      }
+
+      mapAdapter.cleanup();
     });
 
-    eventBus.on('history', (payload) => {
-      aircraftHistory.clear();
-      Object.keys(payload).forEach(icao => {
-        aircraftHistory.set(icao, payload[icao]);
+    eventBus.on('icaos', (payload) => {
+      aircraftICAOs.clear();
+      [...payload].forEach(icao => {
+        aircraftICAOs.add(icao);
       });
     });
 
     // ============================================
     // Initialization
     // ============================================
+    coveragePopup.init();
     connect();
 
     // Center camera on first aircraft appearance

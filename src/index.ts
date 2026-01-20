@@ -1,16 +1,16 @@
-import { WebSocketServer } from './ws-server';
-
+import { AircraftDataRepeater } from './aircraft-data-repeater';
 import { config } from './config';
+import { DatabaseManager } from './database-manager';
+import { AircraftData, UnsavedAircraftData } from './domain';
 import { EventBus } from './event-bus';
+import { readAllFilesInDir } from './fs';
+import { HttpServer } from './http-server';
 import { Logger } from './logger';
 import { parseSBSLine } from './parser';
 import { SBSClient } from './sbs-client';
 import { AircraftState } from './state';
-import { DatabaseManager } from './database-manager';
-import { AircraftDataRepeater } from './aircraft-data-repeater';
-import { readAllFilesInDir } from './fs';
-import { HttpServer } from './http-server';
-import { AircraftData, UnsavedAircraftData } from './domain';
+import { StatisticsManager } from './statisticsManager';
+import { WebSocketServer } from './ws-server';
 
 const staticFilesPromise = readAllFilesInDir('./public');
 
@@ -19,38 +19,42 @@ const AIRCRAFT_DATA_SAVE_INTERVAL_MS = 7_000;
 const repeatParamFlag = '--repeatFrom';
 
 const parseRepeatParam = (params: string[]) => {
-  const line = params.find(p => p.startsWith(repeatParamFlag));
+  const line = params.find((p) => p.startsWith(repeatParamFlag));
   if (line) {
     const [, value] = line.split('=');
     return value;
   }
 };
 
-const lastSavedAD: Record<string, Date> = {};
+const lastSavedADs: Record<string, UnsavedAircraftData> = {};
+
+const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => {
+  return a.lat !== b.lat || a.lon !== b.lon;
+};
 
 const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
   const logger = new Logger();
   const database = new DatabaseManager(logger.child('Database'));
   await database.connect();
+  const spotNames = await database.getAllSpotNames();
   const eventBus = new EventBus();
   const savingToDB = !repeatParam;
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spotName ? `Spot name set to "${config.spotName}"` : 'No spot name configured');
 
+  const statisticsManager = new StatisticsManager(spotNames, database, config.statistics);
+
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },
     logger.child('HTTPServer'),
     database,
+    statisticsManager,
     await staticFilesPromise
   );
 
-  const wsServer = new WebSocketServer(
-    database,
-    logger.child('WebSocketServer'),
-    httpServer.isAuthenticated
-  );
+  const wsServer = new WebSocketServer(database, logger.child('WebSocketServer'), httpServer.isAuthenticated);
 
   httpServer.server.on('upgrade', (request, socket, head) => {
     wsServer.handleUpgrade(request, socket, head);
@@ -64,7 +68,7 @@ const startUp = async () => {
   const state = new AircraftState(config.state.maxAgeMs, config.spotName, logger.child('State'), eventBus);
 
   const interval = setInterval(() => {
-    wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() })
+    wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() });
     state.cleanup();
   }, 1000);
 
@@ -86,19 +90,23 @@ const startUp = async () => {
 
   const onStateUpdated = async (aircraft: UnsavedAircraftData) => {
     if (savingToDB && aircraft.lat && aircraft.lon) {
-      const lastSavedTime = lastSavedAD[aircraft.icao];
-      if (!lastSavedTime || lastSavedTime.getTime() < aircraft.updatedAt.getTime() - AIRCRAFT_DATA_SAVE_INTERVAL_MS) {
-        lastSavedAD[aircraft.icao] = aircraft.updatedAt;
+      const lastSavedAD = lastSavedADs[aircraft.icao];
+      if (
+        !lastSavedAD ||
+        (lastSavedAD.updatedAt.getTime() < aircraft.updatedAt.getTime() - AIRCRAFT_DATA_SAVE_INTERVAL_MS &&
+        recordsAreNotEqual(lastSavedAD, aircraft))
+      ) {
+        lastSavedADs[aircraft.icao] = aircraft;
         await database.saveAircraftData(aircraft);
       }
     }
   };
 
   const onStateRemoved = async (aircraft: UnsavedAircraftData) => {
-    delete lastSavedAD[aircraft.icao];
+    delete lastSavedADs[aircraft.icao];
     if (savingToDB && aircraft.lat && aircraft.lon) {
       const lastSavedItem = await database.getLastAircraftData(aircraft.icao);
-      if (!lastSavedItem || lastSavedItem.lat !== aircraft.lat || lastSavedItem.lon !== aircraft.lon) {
+      if (!lastSavedItem || recordsAreNotEqual(lastSavedItem, aircraft)) {
         await database.saveAircraftData(aircraft);
       }
     }

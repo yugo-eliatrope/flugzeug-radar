@@ -2,12 +2,16 @@ import crypto from 'crypto';
 import http from 'http';
 import path from 'path';
 
-import { ILogger } from './logger';
-import { AircraftData } from './domain';
 import { formAircraftHistoryStore } from './aircraft-history';
+import { AircraftData, Coverage } from './domain';
+import { ILogger } from './logger';
 
 interface IStateProvider {
   getAircraftData: (params: { icao: string }) => Promise<AircraftData[]>;
+}
+
+interface IStatisticsProvider {
+  coverage: (spotName: string) => Promise<Coverage>;
 }
 
 type Config = {
@@ -23,6 +27,7 @@ export class HttpServer {
     private readonly config: Config,
     private readonly logger: ILogger,
     private readonly stateProvider: IStateProvider,
+    private readonly statisticsProvider: IStatisticsProvider,
     private readonly staticFiles: Record<string, Buffer>
   ) {
     this.server = http.createServer(async (req, res) => {
@@ -103,7 +108,11 @@ export class HttpServer {
         break;
       }
       case '/aircraft-data': {
-        this.handleAircraftDataRequest(req,res);
+        this.handleAircraftDataRequest(req, res);
+        break;
+      }
+      case '/statistics': {
+        await this.handleStatisticsRequest(req, res);
         break;
       }
       default: {
@@ -164,6 +173,20 @@ export class HttpServer {
     res.statusCode = 200;
     res.write(this.staticFiles['public/app.html']);
     res.end();
+  };
+
+  private handleStatisticsRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const url = new URL(`http://localhost${req.url}`);
+    const spotName = url.searchParams.get('spotName');
+    if (!spotName) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'Spot name is required' }));
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 200;
+    const coverage = await this.statisticsProvider.coverage(spotName);
+    res.end(JSON.stringify({ coverage }));
   };
 
   private handleAircraftDataRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {

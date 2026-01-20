@@ -3,12 +3,11 @@ import { Duplex } from 'stream';
 
 import { WebSocketServer as WsWebSocketServer, WebSocket } from 'ws';
 
-import { AircraftData, UnsavedAircraftData } from './domain';
+import { UnsavedAircraftData } from './domain';
 import { ILogger } from './logger';
-import { formAircraftHistoryStore, AircraftHistoryStore } from './aircraft-history';
 
 interface IState {
-  getAllAircraftData: () => Promise<AircraftData[]>;
+  getAllIcaos: () => Promise<string[]>;
 }
 
 type OutgoingMessage =
@@ -17,8 +16,8 @@ type OutgoingMessage =
       payload: UnsavedAircraftData[];
     }
   | {
-      type: 'history';
-      payload: AircraftHistoryStore;
+      type: 'icaos';
+      payload: string[];
     };
 
 type AuthChecker = (req: http.IncomingMessage) => boolean;
@@ -72,8 +71,8 @@ export class WebSocketServer {
 
   private sendInitialState = async (ws: WebSocket) => {
     const message: OutgoingMessage = {
-      type: 'history',
-      payload: formAircraftHistoryStore(await this.state.getAllAircraftData()),
+      type: 'icaos',
+      payload: await this.state.getAllIcaos(),
     };
     ws.send(JSON.stringify(message));
   };
@@ -86,8 +85,8 @@ export class WebSocketServer {
     }
   };
 
-  public close = (): Promise<void> => {
-    return new Promise((resolve) => {
+  public close = (): Promise<void> =>
+    new Promise((resolve) => {
       for (const client of this.clients) {
         client.close();
       }
@@ -97,5 +96,4 @@ export class WebSocketServer {
         resolve();
       });
     });
-  };
 }

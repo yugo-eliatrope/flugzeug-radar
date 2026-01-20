@@ -19,3 +19,11 @@ export type SBSMessage = {
 export type UnsavedAircraftData = Omit<AircraftData, 'id'>;
 
 export { AircraftData };
+
+export type Coverage = {
+  spotName: string;
+  layers: {
+    maxHeight: number;
+    polygon: { lat: number; lon: number }[];
+  }[];
+}

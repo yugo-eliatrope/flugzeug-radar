@@ -22,12 +22,18 @@ type HistorySegment = {
   time: Date;
 };
 
-const toHistorySegment = (lat: number, lon: number, altitude: number, time: Date): HistorySegment => ({ lat, lon, altitude, time });
+const toHistorySegment = (lat: number, lon: number, altitude: number, time: Date): HistorySegment => ({
+  lat,
+  lon,
+  altitude,
+  time,
+});
 
 const findHistoryForAD = (ad: AircraftData, histories: FlightHistory[]): FlightHistory | null => {
   if (histories.length) {
     const passedItem = histories.find(
-      ({ from, to, flight }) => flight === ad.flight && (isLessThanFlightGap(ad.updatedAt, from) || isLessThanFlightGap(ad.updatedAt, to))
+      ({ from, to, flight }) =>
+        flight === ad.flight && (isLessThanFlightGap(ad.updatedAt, from) || isLessThanFlightGap(ad.updatedAt, to))
     );
     if (passedItem) return passedItem;
   }
@@ -53,13 +59,18 @@ export const formAircraftHistoryStore = (data: AircraftData[]): AircraftHistoryS
       }
       if (segmentsWithoutFlight[icao]?.length) {
         for (const unwritten of segmentsWithoutFlight[icao]) {
-          if (!passedHistory.segments.length || isLessThanFlightGap(unwritten.time, passedHistory.segments[passedHistory.segments.length - 1].time)) {
+          if (
+            !passedHistory.segments.length ||
+            isLessThanFlightGap(unwritten.time, passedHistory.segments[passedHistory.segments.length - 1].time)
+          ) {
             passedHistory.segments.push(unwritten);
           }
         }
         segmentsWithoutFlight[icao] = [];
       }
-      const newLength = passedHistory.segments.push(toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt));
+      const newLength = passedHistory.segments.push(
+        toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt)
+      );
       passedHistory.to = passedHistory.segments[newLength - 1].time;
     }
   }
