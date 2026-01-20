@@ -16,8 +16,15 @@ type OutgoingMessage =
       payload: UnsavedAircraftData[];
     }
   | {
-      type: 'icaos';
-      payload: string[];
+      type: 'initialState';
+      payload: {
+        icaos: string[];
+        spot: {
+          name: string;
+          lat: number;
+          lon: number;
+        };
+      }
     };
 
 type AuthChecker = (req: http.IncomingMessage) => boolean;
@@ -29,7 +36,12 @@ export class WebSocketServer {
   constructor(
     private readonly state: IState,
     private readonly logger: ILogger,
-    private readonly isAuthenticated: AuthChecker
+    private readonly isAuthenticated: AuthChecker,
+    private readonly spot: {
+      name: string;
+      lat: number;
+      lon: number;
+    }
   ) {
     this.wss = new WsWebSocketServer({ noServer: true });
 
@@ -71,8 +83,11 @@ export class WebSocketServer {
 
   private sendInitialState = async (ws: WebSocket) => {
     const message: OutgoingMessage = {
-      type: 'icaos',
-      payload: await this.state.getAllIcaos(),
+      type: 'initialState',
+      payload: {
+        icaos: await this.state.getAllIcaos(),
+        spot: this.spot,
+      },
     };
     ws.send(JSON.stringify(message));
   };

@@ -36,5 +36,10 @@ export const config = {
     mapPrecision: getEnvVarAsNumber('STATISTICS_MAP_PRECISION'),
     minDotsInCellAllowed: getEnvVarAsNumber('STATISTICS_MIN_DOTS_IN_CELL_ALLOWED'),
   },
-  spotName: getEnvVar('SPOT_NAME'),
+  spot: {
+    name: getEnvVar('SPOT_NAME'),
+    lat: getEnvVarAsNumber('SPOT_LAT'),
+    lon: getEnvVarAsNumber('SPOT_LON'),
+  },
+  aircraftDataSaveIntervalMs: getEnvVarAsNumber('AIRCRAFT_DATA_SAVE_INTERVAL_MS'),
 } as const;

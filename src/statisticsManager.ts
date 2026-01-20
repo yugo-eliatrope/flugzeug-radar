@@ -1,4 +1,5 @@
 import concaveman from 'concaveman';
+
 import { Coverage } from './domain';
 
 type Dot = { lat: number; lon: number; altitude: number };
@@ -12,14 +13,14 @@ type Settings = {
   minDotsInCellAllowed: number;
 };
 
-const HEIGHT_LEVELS = [2000, 4000, 6000, 8000, 10000, 25000];
+const HEIGHT_LEVELS = [1000, 2000, 4000, 6000, 8000, 10000, 25000];
 
 export class StatisticsManager {
   public concavity: number = 1.8;
   constructor(
     private readonly spotNames: string[],
     private readonly db: Database,
-    private readonly settings: Settings,
+    private readonly settings: Settings
   ) {}
 
   public coverage = async (spotName: string): Promise<Coverage> => {
@@ -61,9 +62,8 @@ export class StatisticsManager {
         const [latStr, lonStr] = key.split('|');
         return { lat: Number(latStr), lon: Number(lonStr), altitude: 0 };
       });
-  }
-
-  private calcCoverageForHeight = (dots: number[][]): { lat: number; lon: number }[] => {
-    return concaveman(dots, this.concavity).map((point) => ({ lat: point[0], lon: point[1] }));
   };
+
+  private calcCoverageForHeight = (dots: number[][]): { lat: number; lon: number }[] =>
+    concaveman(dots, this.concavity).map((point) => ({ lat: point[0], lon: point[1] }));
 }
