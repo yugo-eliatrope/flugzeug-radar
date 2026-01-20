@@ -26,4 +26,4 @@ export type Coverage = {
     maxHeight: number;
     polygon: { lat: number; lon: number }[];
   }[];
-}
+};

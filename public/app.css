@@ -1,0 +1,298 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+:root {
+  --bg-primary: #0a0e14;
+  --bg-secondary: #12171f;
+  --bg-tertiary: #1a2029;
+  --accent: #00d9ff;
+  --accent-dim: rgba(0, 217, 255, 0.15);
+  --accent-glow: rgba(0, 217, 255, 0.4);
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --border: #30363d;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --panel-width: 320px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#app-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#cesiumContainer {
+  flex: 1;
+  height: 100%;
+}
+
+/* Cesium UI customization */
+.cesium-viewer-bottom {
+  display: none !important;
+  /* Hide Cesium's default attribution/timeline */
+}
+
+.cesium-viewer .cesium-viewer-toolbar {
+  display: none !important;
+  /* Hide default toolbar */
+}
+
+.cesium-widget-credits {
+  display: none !important;
+}
+
+/* Leaflet coverage tooltip styling */
+.coverage-tooltip {
+  background: rgba(18, 23, 31, 0.95) !important;
+  border: 1px solid #00d9ff !important;
+  border-radius: 6px !important;
+  color: #e6edf3 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.coverage-tooltip::before {
+  border-top-color: #00d9ff !important;
+}
+
+/* Coverage Control Popup */
+#coverage-popup {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  background: linear-gradient(180deg, #12171f 0%, #0a0e14 100%);
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  display: none;
+  overflow: hidden;
+}
+
+#coverage-popup.show {
+  display: block;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.coverage-popup-header {
+  padding: 16px 20px;
+  background: rgba(0, 217, 255, 0.05);
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.coverage-popup-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #00d9ff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.coverage-popup-close {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #8b949e;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.coverage-popup-close:hover {
+  background: rgba(248, 81, 73, 0.1);
+  border-color: #f85149;
+  color: #f85149;
+}
+
+.coverage-popup-body {
+  padding: 20px;
+}
+
+.coverage-form-group {
+  margin-bottom: 16px;
+}
+
+.coverage-form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6e7681;
+  margin-bottom: 8px;
+}
+
+.coverage-form-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: #1a2029;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #e6edf3;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.coverage-form-input:focus {
+  outline: none;
+  border-color: #00d9ff;
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.15);
+}
+
+.coverage-form-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coverage-form-button {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(0, 217, 255, 0.1);
+  border: 1px solid #00d9ff;
+  border-radius: 6px;
+  color: #00d9ff;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.coverage-form-button:hover:not(:disabled) {
+  background: rgba(0, 217, 255, 0.2);
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.3);
+}
+
+.coverage-form-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coverage-slider-container {
+  display: none;
+}
+
+.coverage-slider-container.show {
+  display: block;
+}
+
+.coverage-slider-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.coverage-slider-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6e7681;
+}
+
+.coverage-slider-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: #00d9ff;
+}
+
+.coverage-slider {
+  width: 100%;
+  height: 6px;
+  background: #1a2029;
+  border-radius: 3px;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.coverage-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #00d9ff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+  transition: all 0.2s;
+}
+
+.coverage-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.8);
+}
+
+.coverage-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #00d9ff;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.5);
+  transition: all 0.2s;
+}
+
+.coverage-slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 12px rgba(0, 217, 255, 0.8);
+}
+
+.coverage-spot-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #8b949e;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: rgba(0, 217, 255, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 217, 255, 0.2);
+}
+
+.coverage-loading {
+  text-align: center;
+  color: #6e7681;
+  font-size: 12px;
+  padding: 8px 0;
+}

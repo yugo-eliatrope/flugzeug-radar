@@ -14,8 +14,6 @@ import { WebSocketServer } from './ws-server';
 
 const staticFilesPromise = readAllFilesInDir('./public');
 
-const AIRCRAFT_DATA_SAVE_INTERVAL_MS = 7_000;
-
 const repeatParamFlag = '--repeatFrom';
 
 const parseRepeatParam = (params: string[]) => {
@@ -28,9 +26,7 @@ const parseRepeatParam = (params: string[]) => {
 
 const lastSavedADs: Record<string, UnsavedAircraftData> = {};
 
-const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => {
-  return a.lat !== b.lat || a.lon !== b.lon;
-};
+const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => a.lat !== b.lat || a.lon !== b.lon;
 
 const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
@@ -42,7 +38,7 @@ const startUp = async () => {
   const savingToDB = !repeatParam;
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
-  logger.info(config.spotName ? `Spot name set to "${config.spotName}"` : 'No spot name configured');
+  logger.info(config.spot.name ? `Spot name set to "${config.spot.name}"` : 'No spot name configured');
 
   const statisticsManager = new StatisticsManager(spotNames, database, config.statistics);
 
@@ -54,7 +50,12 @@ const startUp = async () => {
     await staticFilesPromise
   );
 
-  const wsServer = new WebSocketServer(database, logger.child('WebSocketServer'), httpServer.isAuthenticated);
+  const wsServer = new WebSocketServer(
+    database,
+    logger.child('WebSocketServer'),
+    httpServer.isAuthenticated,
+    config.spot
+  );
 
   httpServer.server.on('upgrade', (request, socket, head) => {
     wsServer.handleUpgrade(request, socket, head);
@@ -65,7 +66,7 @@ const startUp = async () => {
   const sbs = repeatParam
     ? new AircraftDataRepeater(repeatParam, database, logger.child('Repeater'), eventBus)
     : new SBSClient(config.sbs, logger.child('SBSClient'), eventBus);
-  const state = new AircraftState(config.state.maxAgeMs, config.spotName, logger.child('State'), eventBus);
+  const state = new AircraftState(config.state.maxAgeMs, config.spot.name, logger.child('State'), eventBus);
 
   const interval = setInterval(() => {
     wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() });
@@ -93,8 +94,8 @@ const startUp = async () => {
       const lastSavedAD = lastSavedADs[aircraft.icao];
       if (
         !lastSavedAD ||
-        (lastSavedAD.updatedAt.getTime() < aircraft.updatedAt.getTime() - AIRCRAFT_DATA_SAVE_INTERVAL_MS &&
-        recordsAreNotEqual(lastSavedAD, aircraft))
+        (lastSavedAD.updatedAt.getTime() < aircraft.updatedAt.getTime() - config.aircraftDataSaveIntervalMs &&
+          recordsAreNotEqual(lastSavedAD, aircraft))
       ) {
         lastSavedADs[aircraft.icao] = aircraft;
         await database.saveAircraftData(aircraft);

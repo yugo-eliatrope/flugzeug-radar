@@ -8,7 +8,7 @@ const getEnvVar = (name: string): string => {
   return value;
 };
 
-const getEnvVarAsNumber = (name: string): number => {
+const getEnvVarAsInt = (name: string): number => {
   const value = getEnvVar(name);
   const parsed = Number.parseInt(value, 10);
   if (Number.isNaN(parsed)) {
@@ -17,24 +17,38 @@ const getEnvVarAsNumber = (name: string): number => {
   return parsed;
 };
 
+const getEnvVarAsFloat = (name: string): number => {
+  const value = getEnvVar(name);
+  const parsed = Number.parseFloat(value);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Environment variable ${name} must be a valid number`);
+  }
+  return parsed;
+};
+
 export const config = {
   sbs: {
-    port: getEnvVarAsNumber('SBS_PORT'),
+    port: getEnvVarAsInt('SBS_PORT'),
     host: getEnvVar('SBS_HOST'),
   },
   server: {
-    port: getEnvVarAsNumber('APP_PORT'),
+    port: getEnvVarAsInt('APP_PORT'),
     authPassword: process.env['APP_AUTH_PASSWORD'] || null,
   },
   state: {
-    maxAgeMs: getEnvVarAsNumber('STATE_MAX_AGE_MS'),
+    maxAgeMs: getEnvVarAsInt('STATE_MAX_AGE_MS'),
   },
   database: {
     url: getEnvVar('DATABASE_URL'),
   },
   statistics: {
-    mapPrecision: getEnvVarAsNumber('STATISTICS_MAP_PRECISION'),
-    minDotsInCellAllowed: getEnvVarAsNumber('STATISTICS_MIN_DOTS_IN_CELL_ALLOWED'),
+    mapPrecision: getEnvVarAsInt('STATISTICS_MAP_PRECISION'),
+    minDotsInCellAllowed: getEnvVarAsInt('STATISTICS_MIN_DOTS_IN_CELL_ALLOWED'),
   },
-  spotName: getEnvVar('SPOT_NAME'),
+  spot: {
+    name: getEnvVar('SPOT_NAME'),
+    lat: getEnvVarAsFloat('SPOT_LAT'),
+    lon: getEnvVarAsFloat('SPOT_LON'),
+  },
+  aircraftDataSaveIntervalMs: getEnvVarAsInt('AIRCRAFT_DATA_SAVE_INTERVAL_MS'),
 } as const;

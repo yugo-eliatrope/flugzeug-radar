@@ -63,7 +63,10 @@ export class DatabaseManager {
       where: { spotName, lat: notNull, lon: notNull, altitude: notNull, flight: notNull, groundSpeed: notNull },
       select: { lat: true, lon: true, altitude: true },
     });
-    return rawData.filter((item): item is { lat: number; lon: number; altitude: number } => item.lat !== null && item.lon !== null && item.altitude !== null);
+    return rawData.filter(
+      (item): item is { lat: number; lon: number; altitude: number } =>
+        item.lat !== null && item.lon !== null && item.altitude !== null
+    );
   }
 
   public async getAllSpotNames(): Promise<string[]> {
