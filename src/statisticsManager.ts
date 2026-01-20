@@ -15,7 +15,7 @@ type Settings = {
 const HEIGHT_LEVELS = [2000, 4000, 6000, 8000, 10000, 25000];
 
 export class StatisticsManager {
-  public concavity: number = 2;
+  public concavity: number = 1.8;
   constructor(
     private readonly spotNames: string[],
     private readonly db: Database,
