@@ -81,6 +81,7 @@ const aircraftICAOs = new Set();
 const aircraftPhotosCache = new Map(); // icao -> { photo, photographer, link } | null
 const coverageCache = new Map(); // spotName -> Coverage { spotName, layers: [{ maxHeight, polygon }] }
 const colors = ['#00d9ff', '#3fb950', '#d29922'];
+let spotLocation = null; // { name, lat, lon }
 
 // ============================================
 // Side Panel Web Component
@@ -679,7 +680,7 @@ class SidePanel extends HTMLElement {
       this.updateAircraftCard(icao);
     });
 
-    eventBus.on('icaos', (payload) => {
+    eventBus.on('initialState', (payload) => {
       setTimeout(() => {
         this.updateIcaoList();
         this.totalHistory.textContent = aircraftICAOs.size;
@@ -768,6 +769,10 @@ class SidePanel extends HTMLElement {
             <span class="info-label">Position</span>
             <span class="info-value highlight" id="val-position">${(rec.lat != null && rec.lon != null) ? `${rec.lat.toFixed(4)}, ${rec.lon.toFixed(4)}` : '—'}</span>
           </div>
+          <div class="info-row" id="distance-row" style="${spotLocation ? '' : 'display: none;'}">
+            <span class="info-label">Entfernung zum Spot</span>
+            <span class="info-value" id="val-distance">—</span>
+          </div>
           <div class="info-row">
             <span class="info-label">Steig-/Sinkrate</span>
             <span class="info-value" id="val-vrate">${rec.verticalRate != null ? `${rec.verticalRate} ft/min` : '—'}</span>
@@ -791,6 +796,12 @@ class SidePanel extends HTMLElement {
 
       // Fetch aircraft photo only when ICAO changes
       this.renderAircraftPhoto(icao);
+      
+      // Update distance row visibility
+      const distanceRow = this.aircraftCard.querySelector('#distance-row');
+      if (distanceRow) {
+        distanceRow.style.display = spotLocation ? '' : 'none';
+      }
     } else {
       // Just update the values without rebuilding the entire card
       const updateEl = (id, value) => {
@@ -805,6 +816,21 @@ class SidePanel extends HTMLElement {
       updateEl('val-position', (rec.lat != null && rec.lon != null) ? `${rec.lat.toFixed(4)}, ${rec.lon.toFixed(4)}` : '—');
       updateEl('val-vrate', rec.verticalRate != null ? `${rec.verticalRate} ft/min` : '—');
       updateEl('val-ground', rec.isOnGround != null ? (rec.isOnGround ? 'Ja' : 'Nein') : '—');
+      
+      // Update distance row visibility
+      const distanceRow = this.aircraftCard.querySelector('#distance-row');
+      if (distanceRow) {
+        distanceRow.style.display = spotLocation ? '' : 'none';
+      }
+    }
+    
+    // Calculate and update distance if spot location is available
+    if (spotLocation && rec.lat != null && rec.lon != null) {
+      const distance = calculateDistance(spotLocation.lat, spotLocation.lon, rec.lat, rec.lon);
+      const distanceEl = this.aircraftCard.querySelector('#val-distance');
+      if (distanceEl) {
+        distanceEl.textContent = `${distance.toFixed(2)} km`;
+      }
     }
   }
 
@@ -905,6 +931,22 @@ const escapeHtml = (s) => {
   }[c]));
 };
 
+// Calculate distance between two points in kilometers (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Радиус Земли в километрах
+  const dLat = (lat2 - lat1) * Math.PI / 180; // Разница широт (в радианах)
+  const dLon = (lon2 - lon1) * Math.PI / 180; // Разница долгот (в радианах)
+
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  const distance = R * c; // Расстояние в километрах
+  return distance;
+}
+
 // ============================================
 // Map Adapter Interface & Implementations
 // ============================================
@@ -932,6 +974,8 @@ class MapAdapter {
   zoomIn() { throw new Error('Must implement zoomIn()'); }
   zoomOut() { throw new Error('Must implement zoomOut()'); }
   destroy() { throw new Error('Must implement destroy()'); }
+  showSpotMarker(spot) { throw new Error('Must implement showSpotMarker()'); }
+  removeSpotMarker() { throw new Error('Must implement removeSpotMarker()'); }
 
   // Common method
   getAllAircraft() {
@@ -949,6 +993,7 @@ class CesiumMapAdapter extends MapAdapter {
     this.viewer = null;
     this.historyEntities = [];
     this.clickHandler = null;
+    this.spotMarker = null;
   }
 
   initialize() {
@@ -1333,9 +1378,47 @@ class CesiumMapAdapter extends MapAdapter {
     return null;
   }
 
+  showSpotMarker(spot) {
+    if (!spot || spot.lat == null || spot.lon == null) return;
+    
+    // Remove existing spot marker if present
+    this.removeSpotMarker();
+    
+    const position = Cesium.Cartesian3.fromDegrees(spot.lon, spot.lat, 0);
+    
+    this.spotMarker = this.viewer.entities.add({
+      position: position,
+      point: {
+        pixelSize: 12,
+        color: Cesium.Color.fromCssColorString('#f85149'),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: spot.name || 'Spot',
+        font: '12px JetBrains Mono, monospace',
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -20),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+  }
+  
+  removeSpotMarker() {
+    if (this.spotMarker) {
+      this.viewer.entities.remove(this.spotMarker);
+      this.spotMarker = null;
+    }
+  }
+
   destroy() {
     // Clean up all entities
     this.clearFlightHistory();
+    this.removeSpotMarker();
     for (const [icao] of this.planes) {
       this.removeAircraft(icao);
     }
@@ -1365,6 +1448,7 @@ class LeafletMapAdapter extends MapAdapter {
     this.historyLayers = [];
     this.coverageLayer = null; // Current coverage polygon layer
     this.currentCoverageSpot = null; // Current spot name
+    this.spotMarker = null; // Spot location marker
   }
 
   initialize() {
@@ -1584,10 +1668,39 @@ class LeafletMapAdapter extends MapAdapter {
   getCurrentCoverageSpot() {
     return this.currentCoverageSpot;
   }
+  
+  showSpotMarker(spot) {
+    if (!spot || spot.lat == null || spot.lon == null) return;
+    
+    // Remove existing spot marker if present
+    this.removeSpotMarker();
+    
+    const icon = L.divIcon({
+      html: `
+        <div style="display: flex; flex-direction: column; align-items: center;">
+          <div style="width: 12px; height: 12px; background: #f85149; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(248, 81, 73, 0.6);"></div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; color: #f85149; background: #12171f; padding: 2px 6px; border-radius: 4px; margin-top: 4px; display: inline-block; border: 1px solid #f85149; white-space: nowrap; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);">${escapeHtml(spot.name || 'Spot')}</div>
+        </div>
+      `,
+      className: '',
+      iconSize: [100, 40],
+      iconAnchor: [50, 20],
+    });
+    
+    this.spotMarker = L.marker([spot.lat, spot.lon], { icon }).addTo(this.map);
+  }
+  
+  removeSpotMarker() {
+    if (this.spotMarker) {
+      this.map.removeLayer(this.spotMarker);
+      this.spotMarker = null;
+    }
+  }
 
   destroy() {
     // Clean up all markers and layers
     this.clearFlightHistory();
+    this.removeSpotMarker();
     for (const [icao] of this.planes) {
       this.removeAircraft(icao);
     }
@@ -1656,6 +1769,11 @@ function switchMapType(newType) {
   // Re-add all aircraft to the new map
   for (const [icao, planeData] of oldPlanes.entries()) {
     mapAdapter.addOrUpdateAircraft(planeData.record);
+  }
+  
+  // Re-add spot marker if available
+  if (spotLocation) {
+    mapAdapter.showSpotMarker(spotLocation);
   }
 
   // Emit event to update UI (buttons, etc.)
@@ -1934,8 +2052,8 @@ const connect = () => {
       if (parsed.type === 'aircrafts') {
         lastMsgAt = Date.now();
         eventBus.emit('aircrafts', parsed.payload);
-      } else if (parsed.type === 'icaos') {
-        eventBus.emit('icaos', parsed.payload);
+      } else if (parsed.type === 'initialState') {
+        eventBus.emit('initialState', parsed.payload);
       }
     } catch (e) {
       console.error('Bad WS data', e);
@@ -1967,11 +2085,15 @@ eventBus.on('aircrafts', (payload) => {
   mapAdapter.cleanup();
 });
 
-eventBus.on('icaos', (payload) => {
+eventBus.on('initialState', (payload) => {
   aircraftICAOs.clear();
-  [...payload].forEach(icao => {
-    aircraftICAOs.add(icao);
-  });
+  payload.icaos.forEach(icao => aircraftICAOs.add(icao));
+  
+  // Save and display spot location
+  if (payload.spot && payload.spot.lat != null && payload.spot.lon != null) {
+    spotLocation = payload.spot;
+    mapAdapter.showSpotMarker(spotLocation);
+  }
 });
 
 // ============================================
