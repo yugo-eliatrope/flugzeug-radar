@@ -10,6 +10,7 @@ WITH LaggedData AS (
         LAG(lat) OVER (PARTITION BY icao ORDER BY updatedAt) as prev_lat,
         LAG(lon) OVER (PARTITION BY icao ORDER BY updatedAt) as prev_lon
     FROM AircraftData
+    ORDER BY id ASC
 )
 SELECT id, icao, updatedAt, lat, lon, flight
 FROM LaggedData
