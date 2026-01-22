@@ -57,8 +57,8 @@ const startUp = async () => {
     config.spot
   );
 
-  httpServer.server.on('upgrade', (request, socket, head) => {
-    wsServer.handleUpgrade(request, socket, head);
+  httpServer.server.on('upgrade', async (request, socket, head) => {
+    await wsServer.handleUpgrade(request, socket, head);
   });
 
   httpServer.start();
@@ -71,7 +71,7 @@ const startUp = async () => {
   const interval = setInterval(() => {
     wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() });
     state.cleanup();
-  }, 1000);
+  }, 500);
 
   interval.unref();
 

@@ -24,10 +24,10 @@ type OutgoingMessage =
           lat: number;
           lon: number;
         };
-      }
+      };
     };
 
-type AuthChecker = (req: http.IncomingMessage) => boolean;
+type AuthChecker = (req: http.IncomingMessage) => Promise<boolean>;
 
 export class WebSocketServer {
   private wss: WsWebSocketServer;
@@ -63,14 +63,14 @@ export class WebSocketServer {
     });
   }
 
-  public handleUpgrade = (request: http.IncomingMessage, socket: Duplex, head: Buffer) => {
+  public handleUpgrade = async (request: http.IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(`http://localhost${request.url}`);
     if (url.pathname !== '/info') {
       socket.destroy();
       return;
     }
 
-    if (!this.isAuthenticated(request)) {
+    if (!(await this.isAuthenticated(request))) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       return;
