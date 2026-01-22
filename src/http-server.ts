@@ -8,6 +8,7 @@ import { ILogger } from './logger';
 
 interface IStateProvider {
   getAircraftData: (params: { icao: string }) => Promise<AircraftData[]>;
+  allApiKeys: () => Promise<string[]>;
 }
 
 interface IStatisticsProvider {
@@ -54,10 +55,12 @@ export class HttpServer {
       });
     });
 
-  public isAuthenticated = (req: http.IncomingMessage): boolean => {
+  public isAuthenticated = async (req: http.IncomingMessage): Promise<boolean> => {
     if (!this.config.authPassword) return true;
     const sessionToken = this.getSessionToken(req);
-    return sessionToken !== null && this.sessions.has(sessionToken);
+    if (!sessionToken) return false;
+    const apiKeys = await this.stateProvider.allApiKeys();
+    return apiKeys.includes(sessionToken) || this.sessions.has(sessionToken);
   };
 
   private getSessionToken = (req: http.IncomingMessage): string | null => {
@@ -82,7 +85,7 @@ export class HttpServer {
       return;
     }
 
-    const isAuthenticated = this.isAuthenticated(req);
+    const isAuthenticated = await this.isAuthenticated(req);
 
     if (url.pathname === '/') {
       if (isAuthenticated) {

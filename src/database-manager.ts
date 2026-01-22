@@ -76,4 +76,11 @@ export class DatabaseManager {
     });
     return rawData.map((item) => item.spotName).filter((item): item is string => item !== null);
   }
+
+  public async allApiKeys(): Promise<string[]> {
+    const rawData = await this.prisma.apiKey.findMany({
+      select: { token: true },
+    });
+    return rawData.map((item) => item.token);
+  }
 }

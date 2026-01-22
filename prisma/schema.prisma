@@ -12,13 +12,24 @@ model AircraftData {
   icao         String
   flight       String?
   altitude     Int?
-  groundSpeed  Int?
+  groundSpeed  Int?     @map("ground_speed")
   track        Float?
   lat          Float?
   lon          Float?
-  verticalRate Int?
-  inEmergency  Boolean  @default(false)
-  isOnGround   Boolean  @default(false)
-  spotName     String? 
-  updatedAt    DateTime
+  verticalRate Int?     @map("vertical_rate")
+  inEmergency  Boolean  @default(false) @map("in_emergency")
+  isOnGround   Boolean  @default(false) @map("is_on_ground")
+  spotName     String?  @map("spot_name")
+  updatedAt    DateTime @map("updated_at")
+
+  @@map(name: "aircraft_data")
+}
+
+model ApiKey {
+  id           Int      @id @default(autoincrement())
+  owner        String
+  token        String
+  createdAt    DateTime @map("created_at")
+
+  @@map(name: "api_keys")
 }

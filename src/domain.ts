@@ -1,4 +1,4 @@
-import { AircraftData } from '@prisma/client';
+import { AircraftData, ApiKey } from '@prisma/client';
 
 export type SBSMessage = {
   messageType: string;
@@ -18,7 +18,7 @@ export type SBSMessage = {
 
 export type UnsavedAircraftData = Omit<AircraftData, 'id'>;
 
-export { AircraftData };
+export { AircraftData, ApiKey };
 
 export type Coverage = {
   spotName: string;
