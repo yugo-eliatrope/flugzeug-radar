@@ -40,7 +40,7 @@ const startUp = async () => {
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spot.name ? `Spot name set to "${config.spot.name}"` : 'No spot name configured');
 
-  const statisticsManager = new StatisticsManager(spotNames, database, config.statistics);
+  const statisticsManager = new StatisticsManager(spotNames, config.statistics);
 
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },

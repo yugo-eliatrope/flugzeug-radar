@@ -42,7 +42,6 @@ export const config = {
     url: getEnvVar('DATABASE_URL'),
   },
   statistics: {
-    mapPrecision: getEnvVarAsInt('STATISTICS_MAP_PRECISION'),
     minDotsInCellAllowed: getEnvVarAsInt('STATISTICS_MIN_DOTS_IN_CELL_ALLOWED'),
   },
   spot: {
