@@ -1,1 +1,1 @@
-export * from './statistics-manager';
+export * from './statistics-service';
