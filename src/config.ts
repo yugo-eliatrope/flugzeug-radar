@@ -43,6 +43,7 @@ export const config = {
   },
   statistics: {
     minDotsInCellAllowed: getEnvVarAsInt('STATISTICS_MIN_DOTS_IN_CELL_ALLOWED'),
+    concavity: getEnvVarAsFloat('STATISTICS_CONCAVITY'),
   },
   spot: {
     name: getEnvVar('SPOT_NAME'),

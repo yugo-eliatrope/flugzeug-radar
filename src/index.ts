@@ -9,7 +9,7 @@ import { Logger } from './logger';
 import { parseSBSLine } from './parser';
 import { SBSClient } from './sbs-client';
 import { AircraftState } from './state';
-import { StatisticsManager } from './statisticsManager';
+import { StatisticsService } from './services/statistics';
 import { WebSocketServer } from './ws-server';
 
 const staticFilesPromise = readAllFilesInDir('./public');
@@ -40,13 +40,13 @@ const startUp = async () => {
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spot.name ? `Spot name set to "${config.spot.name}"` : 'No spot name configured');
 
-  const statisticsManager = new StatisticsManager(spotNames, config.statistics);
+  const statisticsService = new StatisticsService(spotNames, config.statistics, logger.child('StatisticsService'));
 
   const httpServer = new HttpServer(
     { port: config.server.port, authPassword: config.server.authPassword },
     logger.child('HTTPServer'),
     database,
-    statisticsManager,
+    statisticsService,
     await staticFilesPromise
   );
 
