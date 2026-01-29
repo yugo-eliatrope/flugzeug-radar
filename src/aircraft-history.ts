@@ -66,7 +66,7 @@ export const formAircraftHistoryStore = (data: AircraftData[]): AircraftHistoryS
             passedHistory.segments.push(unwritten);
           }
         }
-        segmentsWithoutFlight[icao] = [];
+        delete segmentsWithoutFlight[icao];
       }
       const newLength = passedHistory.segments.push(
         toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt)

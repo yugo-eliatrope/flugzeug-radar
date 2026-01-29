@@ -10,11 +10,15 @@ type Settings = {
 };
 
 export class StatisticsService {
+  private readonly dbPath: string;
+
   constructor(
     private readonly spotNames: string[],
     private readonly settings: Settings,
-    private readonly logger: ILogger,
-  ) {}
+    private readonly logger: ILogger
+  ) {
+    this.dbPath = process.env.DATABASE_URL?.replace('file:', '') || './dev.db';
+  }
 
   public coverage = async (spotName: string): Promise<Coverage> => {
     if (!this.spotNames.includes(spotName)) {
@@ -29,6 +33,7 @@ export class StatisticsService {
           spotName,
           minDotsInCellAllowed: this.settings.minDotsInCellAllowed,
           concavity: this.settings.concavity,
+          dbPath: this.dbPath,
         },
       });
 
