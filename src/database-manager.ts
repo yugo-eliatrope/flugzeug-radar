@@ -50,10 +50,9 @@ export class DatabaseManager {
   }
 
   public async getAllIcaos(): Promise<string[]> {
-    const rawData = await this.prisma.aircraftData.findMany({
-      select: { icao: true },
-      distinct: ['icao'],
-    });
+    const rawData = await this.prisma.$queryRaw<{ icao: string }[]>`
+      SELECT DISTINCT icao FROM aircraft_data
+    `;
     return rawData.map((item) => item.icao);
   }
 
@@ -70,11 +69,10 @@ export class DatabaseManager {
   }
 
   public async getAllSpotNames(): Promise<string[]> {
-    const rawData = await this.prisma.aircraftData.findMany({
-      select: { spotName: true },
-      distinct: ['spotName'],
-    });
-    return rawData.map((item) => item.spotName).filter((item): item is string => item !== null);
+    const rawData = await this.prisma.$queryRaw<{ spot_name: string }[]>`
+      SELECT DISTINCT spot_name FROM aircraft_data WHERE spot_name IS NOT NULL
+    `;
+    return rawData.map((item) => item.spot_name);
   }
 
   public async allApiKeys(): Promise<string[]> {
