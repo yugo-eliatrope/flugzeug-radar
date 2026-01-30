@@ -24,7 +24,7 @@ const parseRepeatParam = (params: string[]) => {
   }
 };
 
-const lastSavedADs: Record<string, UnsavedAircraftData> = {};
+const lastSavedADs = new Map<string, UnsavedAircraftData>();
 
 const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => a.lat !== b.lat || a.lon !== b.lon;
 
@@ -91,20 +91,20 @@ const startUp = async () => {
 
   const onStateUpdated = async (aircraft: UnsavedAircraftData) => {
     if (savingToDB && aircraft.lat && aircraft.lon) {
-      const lastSavedAD = lastSavedADs[aircraft.icao];
+      const lastSavedAD = lastSavedADs.get(aircraft.icao);
       if (
         !lastSavedAD ||
         (lastSavedAD.updatedAt.getTime() < aircraft.updatedAt.getTime() - config.aircraftDataSaveIntervalMs &&
           recordsAreNotEqual(lastSavedAD, aircraft))
       ) {
-        lastSavedADs[aircraft.icao] = aircraft;
+        lastSavedADs.set(aircraft.icao, aircraft);
         await database.saveAircraftData(aircraft);
       }
     }
   };
 
   const onStateRemoved = async (aircraft: UnsavedAircraftData) => {
-    delete lastSavedADs[aircraft.icao];
+    lastSavedADs.delete(aircraft.icao);
     if (savingToDB && aircraft.lat && aircraft.lon) {
       const lastSavedItem = await database.getLastAircraftData(aircraft.icao);
       if (!lastSavedItem || recordsAreNotEqual(lastSavedItem, aircraft)) {
