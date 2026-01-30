@@ -1,7 +1,7 @@
-import { Coverage } from '../../domain';
-
-import { Worker } from 'worker_threads';
 import path from 'path';
+import { Worker } from 'worker_threads';
+
+import { Coverage } from '../../domain';
 import { ILogger } from '../../logger';
 
 type Settings = {
@@ -13,7 +13,7 @@ export class StatisticsService {
   constructor(
     private readonly spotNames: string[],
     private readonly settings: Settings,
-    private readonly logger: ILogger,
+    private readonly logger: ILogger
   ) {}
 
   public coverage = async (spotName: string): Promise<Coverage> => {

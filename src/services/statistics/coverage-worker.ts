@@ -1,10 +1,13 @@
-import concaveman from 'concaveman';
 import { parentPort, workerData } from 'worker_threads';
+
 import { PrismaClient } from '@prisma/client';
+import concaveman from 'concaveman';
 
 import { Coverage } from '../../domain';
+import { Logger } from '../../logger';
 
 const prismaClient = new PrismaClient();
+const logger = new Logger('CoverageWorker');
 
 type WorkerProps = {
   spotName: string;
@@ -14,14 +17,15 @@ type WorkerProps = {
 
 const HEIGHT_LEVELS = [1000, 2000, 4000, 6000, 8000, 10000, 25000];
 
-const isWorkerProps = (data: any): data is WorkerProps => {
-  return (
-    data &&
-    typeof data.minDotsInCellAllowed === 'number' &&
-    typeof data.concavity === 'number' &&
-    typeof data.spotName === 'string'
-  );
-}
+const isWorkerProps = (data: unknown): data is WorkerProps =>
+  typeof data === 'object' &&
+  data !== null &&
+  'minDotsInCellAllowed' in data &&
+  typeof data.minDotsInCellAllowed === 'number' &&
+  'concavity' in data &&
+  typeof data.concavity === 'number' &&
+  'spotName' in data &&
+  typeof data.spotName === 'string';
 
 const workerProps = (() => {
   if (!isWorkerProps(workerData)) {
@@ -30,8 +34,8 @@ const workerProps = (() => {
   return workerData;
 })();
 
-const getDotsFromDB = (maxHeight: number) => {
-  return prismaClient.$queryRaw`
+const getDotsFromDB = (maxHeight: number) =>
+  prismaClient.$queryRaw`
     WITH grouped_data AS (
       SELECT
         count(id) as count,
@@ -50,18 +54,21 @@ const getDotsFromDB = (maxHeight: number) => {
     FROM grouped_data
     WHERE count >= ${workerProps.minDotsInCellAllowed};
   ` as Promise<{ lat: number; lon: number }[]>;
-};
 
 const calcCoverageForHeight = (dots: number[][]): { lat: number; lon: number }[] =>
   concaveman(dots, workerProps.concavity).map((point) => ({ lat: point[0], lon: point[1] }));
 
 const calcCoverageForAllHeghts = async (): Promise<Coverage> => {
   const promises = HEIGHT_LEVELS.map(async (maxHeight) => {
+    logger.info(`Calculating coverage for height ${maxHeight}`);
+    const d1 = Date.now();
     const filteredByHeight = await getDotsFromDB(maxHeight);
+    logger.info(`Filtered dots for height ${maxHeight} in ${Date.now() - d1} ms`);
     const dots = filteredByHeight.map((dot) => [dot.lat, dot.lon]);
     if (dots.length < 3) return null;
-
+    const d2 = Date.now();
     const polygon = calcCoverageForHeight(dots);
+    logger.info(`Calculated coverage for height ${maxHeight} in ${Date.now() - d2} ms`);
     return {
       maxHeight,
       polygon,

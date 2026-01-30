@@ -8,8 +8,8 @@ import { HttpServer } from './http-server';
 import { Logger } from './logger';
 import { parseSBSLine } from './parser';
 import { SBSClient } from './sbs-client';
-import { AircraftState } from './state';
 import { StatisticsService } from './services/statistics';
+import { AircraftState } from './state';
 import { WebSocketServer } from './ws-server';
 
 const staticFilesPromise = readAllFilesInDir('./public');
