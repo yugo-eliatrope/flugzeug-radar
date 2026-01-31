@@ -90,6 +90,9 @@ const calcCoverageForAllHeghts = async (): Promise<Coverage> => {
   } catch (error) {
     parentPort?.postMessage({ type: 'error', payload: (error as Error).message });
   } finally {
+    const timeout = setTimeout(() => process.exit(1), 15000);
+    timeout.unref();
     await prismaClient.$disconnect();
+    process.exit(0);
   }
 })();

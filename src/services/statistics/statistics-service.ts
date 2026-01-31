@@ -35,11 +35,9 @@ export class StatisticsService {
       worker.on('message', (message) => {
         if (message.type === 'data') {
           this.logger.info(`Coverage calculation for spot "${spotName}" completed in ${Date.now() - startDate} ms`);
-          worker.terminate();
           resolve(message.payload);
         } else if (message.type === 'error') {
           this.logger.error(`Coverage calculation for spot "${spotName}" failed: ${message.payload}`);
-          worker.terminate();
           reject(new Error(message.payload));
         }
       });
