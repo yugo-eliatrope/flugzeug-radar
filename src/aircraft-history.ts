@@ -32,15 +32,17 @@ const toHistorySegment = (lat: number, lon: number, altitude: number, time: Date
 const findHistoryForAD = (ad: AircraftData, histories: FlightHistory[]): FlightHistory | null => {
   if (histories.length) {
     const passedItem = histories.find(
-      ({ from, to, flight }) =>
-        flight === ad.flight && (isLessThanFlightGap(ad.updatedAt, from) || isLessThanFlightGap(ad.updatedAt, to))
+      ({ from, to }) => isLessThanFlightGap(ad.updatedAt, from) || isLessThanFlightGap(ad.updatedAt, to)
     );
-    if (passedItem) return passedItem;
+    if (passedItem) {
+      if (!passedItem.flight && ad.flight) {
+        passedItem.flight = ad.flight;
+      }
+      return passedItem;
+    }
   }
   return null;
 };
-
-const segmentsWithoutFlight: Record<ICAO, HistorySegment[]> = {};
 
 export const formAircraftHistoryStore = (data: AircraftData[]): AircraftHistoryStore => {
   const res: AircraftHistoryStore = {};
@@ -48,31 +50,18 @@ export const formAircraftHistoryStore = (data: AircraftData[]): AircraftHistoryS
     const { icao } = item;
     if (!item.lat || !item.lon || !item.altitude) continue;
     if (!res[icao]) res[icao] = [];
-    if (!item.flight) {
-      if (!segmentsWithoutFlight[icao]) segmentsWithoutFlight[icao] = [];
-      segmentsWithoutFlight[icao].push(toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt));
-    } else {
-      let passedHistory = findHistoryForAD(item, res[icao]);
-      if (!passedHistory) {
-        res[icao].push({ flight: item.flight, from: item.updatedAt, to: item.updatedAt, segments: [] });
-        passedHistory = res[icao][res[icao].length - 1];
-      }
-      if (segmentsWithoutFlight[icao]?.length) {
-        for (const unwritten of segmentsWithoutFlight[icao]) {
-          if (
-            !passedHistory.segments.length ||
-            isLessThanFlightGap(unwritten.time, passedHistory.segments[passedHistory.segments.length - 1].time)
-          ) {
-            passedHistory.segments.push(unwritten);
-          }
-        }
-        segmentsWithoutFlight[icao] = [];
-      }
-      const newLength = passedHistory.segments.push(
-        toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt)
-      );
-      passedHistory.to = passedHistory.segments[newLength - 1].time;
+    let passedHistory = findHistoryForAD(item, res[icao]);
+    if (!passedHistory) {
+      const length = res[icao].push({
+        flight: item.flight || '',
+        from: item.updatedAt,
+        to: item.updatedAt,
+        segments: [],
+      });
+      passedHistory = res[icao][length - 1];
     }
+    const newLength = passedHistory.segments.push(toHistorySegment(item.lat, item.lon, item.altitude, item.updatedAt));
+    passedHistory.to = passedHistory.segments[newLength - 1].time;
   }
   return res;
 };
