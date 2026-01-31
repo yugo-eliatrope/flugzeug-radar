@@ -1,7 +1,7 @@
-import { Coverage } from '../../domain';
-
-import { Worker } from 'worker_threads';
 import path from 'path';
+import { Worker } from 'worker_threads';
+
+import { Coverage } from '../../domain';
 import { ILogger } from '../../logger';
 
 type Settings = {
@@ -13,7 +13,7 @@ export class StatisticsService {
   constructor(
     private readonly spotNames: string[],
     private readonly settings: Settings,
-    private readonly logger: ILogger,
+    private readonly logger: ILogger
   ) {}
 
   public coverage = async (spotName: string): Promise<Coverage> => {
@@ -35,9 +35,11 @@ export class StatisticsService {
       worker.on('message', (message) => {
         if (message.type === 'data') {
           this.logger.info(`Coverage calculation for spot "${spotName}" completed in ${Date.now() - startDate} ms`);
+          worker.terminate();
           resolve(message.payload);
         } else if (message.type === 'error') {
           this.logger.error(`Coverage calculation for spot "${spotName}" failed: ${message.payload}`);
+          worker.terminate();
           reject(new Error(message.payload));
         }
       });
