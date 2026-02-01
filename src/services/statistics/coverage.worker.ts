@@ -60,15 +60,15 @@ const calcCoverageForHeight = (dots: number[][]): { lat: number; lon: number }[]
 
 const calcCoverageForAllHeghts = async (): Promise<Coverage> => {
   const promises = HEIGHT_LEVELS.map(async (maxHeight) => {
-    logger.info(`Calculating coverage for height ${maxHeight}`);
+    logger.debug(`Calculating coverage for height ${maxHeight}`);
     const d1 = Date.now();
     const filteredByHeight = await getDotsFromDB(maxHeight);
-    logger.info(`Filtered dots for height ${maxHeight} in ${Date.now() - d1} ms`);
+    logger.debug(`Filtered dots for height ${maxHeight} in ${Date.now() - d1} ms`);
     const dots = filteredByHeight.map((dot) => [dot.lat, dot.lon]);
     if (dots.length < 3) return null;
     const d2 = Date.now();
     const polygon = calcCoverageForHeight(dots);
-    logger.info(`Calculated coverage for height ${maxHeight} in ${Date.now() - d2} ms`);
+    logger.debug(`Calculated coverage for height ${maxHeight} in ${Date.now() - d2} ms`);
     return {
       maxHeight,
       polygon,

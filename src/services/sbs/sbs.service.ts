@@ -1,22 +1,22 @@
 import net from 'node:net';
 import readline from 'node:readline';
 
-import { EventBus } from './event-bus';
-import { ILogger } from './logger';
+import { EventBus } from '../../event-bus';
+import { ILogger } from '../../logger';
 
-export interface SBSClientOptions {
+interface SBSServiceOptions {
   host: string;
   port: number;
 }
 
-export class SBSClient {
+export class SBSService {
   private host: string;
   private port: number;
   private socket?: net.Socket;
   private rl?: readline.Interface;
 
   constructor(
-    options: SBSClientOptions,
+    options: SBSServiceOptions,
     private readonly logger: ILogger,
     private readonly eventBus: EventBus
   ) {
@@ -31,29 +31,31 @@ export class SBSClient {
 
     this.rl = readline.createInterface({
       input: this.socket,
-      terminal: false
+      terminal: false,
     });
 
-    let i = 0;
+    let processedInInterval = 0;
 
     this.rl.on('line', (line) => {
       const trimmed = line.trim();
       if (trimmed) {
         this.eventBus.emit('readsb:data', trimmed);
       }
-      i++;
+      processedInInterval++;
     });
 
-    setInterval(() => {
-      this.logger.debug(`Processed ${i.toLocaleString()} SBS lines in 10 second`);
-      i = 0;
+    const interval = setInterval(() => {
+      const perSecond = Math.round(processedInInterval / 10);
+      this.logger.debug(`Traffic density: ~${perSecond} msg/sec`);
+      processedInInterval = 0;
     }, 10_000);
+    interval.unref();
 
     this.socket.on('end', () => this.logger.info('Stream closed'));
 
     this.socket.on('error', (err) => {
-        this.logger.error(err);
-        this.stop();
+      this.logger.error(err);
+      this.stop();
     });
   }
 

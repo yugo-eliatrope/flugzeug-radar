@@ -6,9 +6,9 @@ import { readAllFilesInDir } from './fs';
 import { HttpServer } from './http-server';
 import { Logger } from './logger';
 import { parseSBSLine } from './parser';
-import { SBSClient } from './sbs-client';
 import { AuthentificationService } from './services/authentification';
 import { DatabaseService } from './services/database';
+import { SBSService } from './services/sbs';
 import { StatisticsService } from './services/statistics';
 import { AircraftState } from './state';
 import { WebSocketServer } from './ws-server';
@@ -67,7 +67,7 @@ const startUp = async () => {
 
   const sbs = repeatParam
     ? new AircraftDataRepeater(repeatParam, database, logger.child('Repeater'), eventBus)
-    : new SBSClient(config.sbs, logger.child('SBSClient'), eventBus);
+    : new SBSService(config.sbs, logger.child('SBSService'), eventBus);
   const state = new AircraftState(config.state.maxAgeMs, config.spot.name, logger.child('State'), eventBus);
 
   const interval = setInterval(() => {
