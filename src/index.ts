@@ -1,6 +1,5 @@
 import { AircraftDataRepeater } from './aircraft-data-repeater';
 import { config } from './config';
-import { DatabaseManager } from './database-manager';
 import { AircraftData, UnsavedAircraftData } from './domain';
 import { EventBus } from './event-bus';
 import { readAllFilesInDir } from './fs';
@@ -8,6 +7,8 @@ import { HttpServer } from './http-server';
 import { Logger } from './logger';
 import { parseSBSLine } from './parser';
 import { SBSClient } from './sbs-client';
+import { AuthentificationService } from './services/authentification';
+import { DatabaseService } from './services/database';
 import { StatisticsService } from './services/statistics';
 import { AircraftState } from './state';
 import { WebSocketServer } from './ws-server';
@@ -31,11 +32,12 @@ const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => a
 const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
   const logger = new Logger();
-  const database = new DatabaseManager(logger.child('Database'));
+  const database = new DatabaseService(logger.child('Database'));
   await database.connect();
   const spotNames = await database.getAllSpotNames();
   const eventBus = new EventBus();
   const savingToDB = !repeatParam;
+  const authService = new AuthentificationService(database, config.server.authPassword);
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spot.name ? `Spot name set to "${config.spot.name}"` : 'No spot name configured');
@@ -43,19 +45,15 @@ const startUp = async () => {
   const statisticsService = new StatisticsService(spotNames, config.statistics, logger.child('StatisticsService'));
 
   const httpServer = new HttpServer(
-    { port: config.server.port, authPassword: config.server.authPassword },
+    { port: config.server.port },
     logger.child('HTTPServer'),
+    authService,
     database,
     statisticsService,
     await staticFilesPromise
   );
 
-  const wsServer = new WebSocketServer(
-    database,
-    logger.child('WebSocketServer'),
-    httpServer.isAuthenticated,
-    config.spot
-  );
+  const wsServer = new WebSocketServer(database, logger.child('WebSocketServer'), authService, config.spot);
 
   httpServer.server.on('upgrade', async (request, socket, head) => {
     await wsServer.handleUpgrade(request, socket, head);

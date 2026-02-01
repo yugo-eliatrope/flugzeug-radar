@@ -24,7 +24,7 @@ export class StatisticsService {
     return new Promise<Coverage>((resolve, reject) => {
       this.logger.info(`Starting coverage calculation for spot "${spotName}"`);
       const startDate = Date.now();
-      const worker = new Worker(path.resolve(__dirname, 'coverage-worker.js'), {
+      const worker = new Worker(path.resolve(__dirname, 'coverage.worker.js'), {
         workerData: {
           spotName,
           minDotsInCellAllowed: this.settings.minDotsInCellAllowed,

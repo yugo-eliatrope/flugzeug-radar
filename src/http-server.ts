@@ -1,14 +1,20 @@
-import crypto from 'crypto';
 import http from 'http';
 import path from 'path';
 
 import { formAircraftHistoryStore } from './aircraft-history';
 import { AircraftData, Coverage } from './domain';
 import { ILogger } from './logger';
+import { extractToken } from './utils';
 
 interface IStateProvider {
   getAircraftData: (params: { icao: string }) => Promise<AircraftData[]>;
   allApiKeys: () => Promise<string[]>;
+}
+
+interface IAuthService {
+  isAuthenticated: (token: string) => Promise<boolean>;
+  login: (password: string) => Promise<string | null>;
+  logout: (token: string) => void;
 }
 
 interface IStatisticsProvider {
@@ -17,16 +23,15 @@ interface IStatisticsProvider {
 
 type Config = {
   port: number;
-  authPassword: string | null;
 };
 
 export class HttpServer {
   public readonly server: http.Server;
-  private sessions = new Set<string>();
 
   constructor(
     private readonly config: Config,
     private readonly logger: ILogger,
+    private readonly authService: IAuthService,
     private readonly stateProvider: IStateProvider,
     private readonly statisticsProvider: IStatisticsProvider,
     private readonly staticFiles: Record<string, Buffer>
@@ -36,14 +41,14 @@ export class HttpServer {
     });
   }
 
-  public start = () => {
+  public start(): void {
     this.server.listen(this.config.port, () => {
       this.logger.info(`Listening on port ${this.config.port}`);
     });
-  };
+  }
 
-  public stop = (): Promise<void> =>
-    new Promise((resolve, reject) => {
+  public stop(): Promise<void> {
+    return new Promise((resolve, reject) => {
       this.server.close((err) => {
         if (err) {
           this.logger.error(`Error closing server: ${err.message}`);
@@ -54,23 +59,10 @@ export class HttpServer {
         }
       });
     });
+  }
 
-  public isAuthenticated = async (req: http.IncomingMessage): Promise<boolean> => {
-    if (!this.config.authPassword) return true;
-    const sessionToken = this.getSessionToken(req);
-    if (!sessionToken) return false;
-    const apiKeys = await this.stateProvider.allApiKeys();
-    return apiKeys.includes(sessionToken) || this.sessions.has(sessionToken);
-  };
-
-  private getSessionToken = (req: http.IncomingMessage): string | null => {
-    const cookies = req.headers.cookie || '';
-    const match = cookies.match(/session=([^;]+)/);
-    return match ? match[1] : null;
-  };
-
-  private handleRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    const url = new URL(`http://localhost${req.url}`);
+  private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = this.formURL(req);
 
     if (url.pathname === '/login' && req.method === 'POST') {
       await this.handleLoginRequest(req, res);
@@ -85,7 +77,8 @@ export class HttpServer {
       return;
     }
 
-    const isAuthenticated = await this.isAuthenticated(req);
+    const token = extractToken(req);
+    const isAuthenticated = token ? await this.authService.isAuthenticated(token) : false;
 
     if (url.pathname === '/') {
       if (isAuthenticated) {
@@ -123,63 +116,59 @@ export class HttpServer {
         break;
       }
     }
-  };
+  }
 
-  private handleLoginPageRequest = (res: http.ServerResponse) => {
+  private handleLoginPageRequest(res: http.ServerResponse): void {
     res.setHeader('Content-Type', 'text/html');
     res.statusCode = 200;
     res.write(this.staticFiles['public/index.html']);
     res.end();
-  };
+  }
 
-  private handleLoginRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    try {
-      const body = await this.readBody(req);
-      const { password } = JSON.parse(body);
-
-      if (password === this.config.authPassword) {
-        const sessionToken = crypto.randomBytes(32).toString('hex');
-        this.sessions.add(sessionToken);
-        res.setHeader('Set-Cookie', `session=${sessionToken}; HttpOnly; Path=/; SameSite=Strict`);
-        res.statusCode = 200;
-        res.end(JSON.stringify({ success: true }));
-      } else {
-        res.statusCode = 401;
-        res.end(JSON.stringify({ error: 'Invalid password' }));
-      }
-    } catch {
-      res.statusCode = 400;
-      res.end(JSON.stringify({ error: 'Bad request' }));
-    }
-  };
-
-  private handleLogoutRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    const sessionToken = this.getSessionToken(req);
+  private async handleLoginRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const body = await this.readBody(req);
+    const { password } = JSON.parse(body);
+    const sessionToken = await this.authService.login(password);
     if (sessionToken) {
-      this.sessions.delete(sessionToken);
+      res.setHeader('Set-Cookie', `session=${sessionToken}; HttpOnly; Path=/; SameSite=Strict`);
+      res.statusCode = 200;
+      res.end(JSON.stringify({ success: true }));
+    } else {
+      res.statusCode = 401;
+      res.end(JSON.stringify({ error: 'Invalid password' }));
     }
+  }
+
+  private async handleLogoutRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const sessionToken = extractToken(req);
+    if (sessionToken) this.authService.logout(sessionToken);
     res.setHeader('Set-Cookie', 'session=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0');
     res.statusCode = 200;
     res.end(JSON.stringify({ success: true }));
-  };
+  }
 
-  private readBody = (req: http.IncomingMessage): Promise<string> =>
-    new Promise((resolve, reject) => {
+  private async readBody(req: http.IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
       let body = '';
       req.on('data', (chunk) => (body += chunk.toString()));
       req.on('end', () => resolve(body));
       req.on('error', reject);
     });
+  }
 
-  private handleAppRequest = (res: http.ServerResponse) => {
+  private handleAppRequest(res: http.ServerResponse): void {
     res.setHeader('Content-Type', 'text/html');
     res.statusCode = 200;
     res.write(this.staticFiles['public/app.html']);
     res.end();
-  };
+  }
 
-  private handleStatisticsRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    const url = new URL(`http://localhost${req.url}`);
+  private formURL(req: http.IncomingMessage): URL {
+    return new URL(`http://ooo${req.url}`);
+  }
+
+  private async handleStatisticsRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = this.formURL(req);
     const spotName = url.searchParams.get('spotName');
     if (!spotName) {
       res.statusCode = 400;
@@ -190,10 +179,10 @@ export class HttpServer {
     res.statusCode = 200;
     const coverage = await this.statisticsProvider.coverage(spotName);
     res.end(JSON.stringify({ coverage }));
-  };
+  }
 
-  private handleAircraftDataRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    const url = new URL(`http://localhost${req.url}`);
+  private async handleAircraftDataRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const url = this.formURL(req);
     const icao = url.searchParams.get('icao');
     if (!icao) {
       res.statusCode = 400;
@@ -210,9 +199,9 @@ export class HttpServer {
     res.statusCode = 200;
     const history = formAircraftHistoryStore(aircraftData.reverse());
     res.end(JSON.stringify(history));
-  };
+  }
 
-  private handleFaviconRequest = (res: http.ServerResponse) => {
+  private handleFaviconRequest(res: http.ServerResponse): void {
     const favicon = this.staticFiles['public/favicon.svg'];
     if (favicon) {
       res.setHeader('Content-Type', 'image/svg+xml');
@@ -223,9 +212,9 @@ export class HttpServer {
       res.statusCode = 404;
     }
     res.end();
-  };
+  }
 
-  private handleStaticFileRequest = (res: http.ServerResponse, urlPathname: string) => {
+  private handleStaticFileRequest(res: http.ServerResponse, urlPathname: string): void {
     const filePath = urlPathname.replace(/^\//, '');
     const file = this.staticFiles[filePath];
     if (file) {
@@ -236,9 +225,9 @@ export class HttpServer {
       res.statusCode = 404;
     }
     res.end();
-  };
+  }
 
-  private getMimeType = (filePath: string) => {
+  private getMimeType(filePath: string): string {
     const extension = path.extname(filePath).toLowerCase();
     switch (extension) {
       case '.html':
@@ -250,5 +239,5 @@ export class HttpServer {
       default:
         return 'application/octet-stream';
     }
-  };
+  }
 }

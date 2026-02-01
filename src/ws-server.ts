@@ -5,9 +5,14 @@ import { WebSocketServer as WsWebSocketServer, WebSocket } from 'ws';
 
 import { UnsavedAircraftData } from './domain';
 import { ILogger } from './logger';
+import { extractToken } from './utils';
 
 interface IState {
   getAllIcaos: () => Promise<string[]>;
+}
+
+interface IAuthService {
+  isAuthenticated: (token: string) => Promise<boolean>;
 }
 
 type OutgoingMessage =
@@ -27,8 +32,6 @@ type OutgoingMessage =
       };
     };
 
-type AuthChecker = (req: http.IncomingMessage) => Promise<boolean>;
-
 export class WebSocketServer {
   private wss: WsWebSocketServer;
   private clients: Set<WebSocket> = new Set();
@@ -36,7 +39,7 @@ export class WebSocketServer {
   constructor(
     private readonly state: IState,
     private readonly logger: ILogger,
-    private readonly isAuthenticated: AuthChecker,
+    private readonly authService: IAuthService,
     private readonly spot: {
       name: string;
       lat: number;
@@ -63,14 +66,15 @@ export class WebSocketServer {
     });
   }
 
-  public handleUpgrade = async (request: http.IncomingMessage, socket: Duplex, head: Buffer) => {
+  public async handleUpgrade(request: http.IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
     const url = new URL(`http://localhost${request.url}`);
     if (url.pathname !== '/info') {
       socket.destroy();
       return;
     }
 
-    if (!(await this.isAuthenticated(request))) {
+    const token = extractToken(request);
+    if (!token || !(await this.authService.isAuthenticated(token))) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       return;
@@ -79,9 +83,9 @@ export class WebSocketServer {
     this.wss.handleUpgrade(request, socket, head, (ws) => {
       this.wss.emit('connection', ws, request);
     });
-  };
+  }
 
-  private sendInitialState = async (ws: WebSocket) => {
+  private async sendInitialState(ws: WebSocket): Promise<void> {
     const message: OutgoingMessage = {
       type: 'initialState',
       payload: {
@@ -90,18 +94,18 @@ export class WebSocketServer {
       },
     };
     ws.send(JSON.stringify(message));
-  };
+  }
 
-  public broadcastMessage = (message: OutgoingMessage) => {
+  public broadcastMessage(message: OutgoingMessage): void {
     for (const client of this.clients) {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify(message));
       }
     }
-  };
+  }
 
-  public close = (): Promise<void> =>
-    new Promise((resolve) => {
+  public async close(): Promise<void> {
+    return new Promise((resolve) => {
       for (const client of this.clients) {
         client.close();
       }
@@ -111,4 +115,5 @@ export class WebSocketServer {
         resolve();
       });
     });
+  }
 }

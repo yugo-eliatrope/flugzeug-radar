@@ -1,7 +1,17 @@
+/**
+ * WARNING!!!
+ * Some requests to DB are raw SQL queries because of Prisma performance
+ * issues with millions of records.
+ *
+ * ВНИМАНИЕ!!!
+ * Некоторые запросы к БД выполняются с помощью сырых SQL-запросов из-за
+ * проблем с производительностью Prisma при работе с миллионами записей.
+ */
+
 import { PrismaClient } from '@prisma/client';
 
-import { UnsavedAircraftData, AircraftData } from './domain';
-import { ILogger } from './logger';
+import { UnsavedAircraftData, AircraftData } from '../../domain';
+import { ILogger } from '../../logger';
 
 type SelectParams = {
   limit?: number;
@@ -9,7 +19,7 @@ type SelectParams = {
   icao?: string;
 };
 
-export class DatabaseManager {
+export class DatabaseService {
   private prisma: PrismaClient;
 
   constructor(private readonly logger: ILogger) {
@@ -28,9 +38,7 @@ export class DatabaseManager {
 
   public async saveAircraftData(data: UnsavedAircraftData): Promise<AircraftData> {
     this.logger.info(`Saving aircraft data for ICAO: ${data.icao}`);
-    return this.prisma.aircraftData.create({
-      data,
-    });
+    return this.prisma.aircraftData.create({ data });
   }
 
   public async getAircraftData(params?: SelectParams): Promise<AircraftData[]> {
@@ -54,18 +62,6 @@ export class DatabaseManager {
       SELECT DISTINCT icao FROM aircraft_data
     `;
     return rawData.map((item) => item.icao);
-  }
-
-  public async getAllDots(spotName: string): Promise<{ lat: number; lon: number; altitude: number }[]> {
-    const notNull = { not: null };
-    const rawData = await this.prisma.aircraftData.findMany({
-      where: { spotName, lat: notNull, lon: notNull, altitude: notNull, flight: notNull, groundSpeed: notNull },
-      select: { lat: true, lon: true, altitude: true },
-    });
-    return rawData.filter(
-      (item): item is { lat: number; lon: number; altitude: number } =>
-        item.lat !== null && item.lon !== null && item.altitude !== null
-    );
   }
 
   public async getAllSpotNames(): Promise<string[]> {

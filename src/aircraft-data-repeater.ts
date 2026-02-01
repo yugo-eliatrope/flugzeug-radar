@@ -1,15 +1,18 @@
 import { AircraftData } from '@prisma/client';
 
-import { DatabaseManager } from './database-manager';
 import { EventBus } from './event-bus';
 import { ILogger } from './logger';
+
+interface IDBProvider {
+  getAircraftData: (params: { from: Date }) => Promise<AircraftData[]>;
+}
 
 export class AircraftDataRepeater {
   private readonly startDate: Date;
 
   constructor(
     startDate: string,
-    private readonly dbManager: DatabaseManager,
+    private readonly db: IDBProvider,
     private readonly logger: ILogger,
     private readonly eventBus: EventBus
   ) {
@@ -18,7 +21,7 @@ export class AircraftDataRepeater {
 
   public start() {
     this.logger.info('Starting up...');
-    this.dbManager
+    this.db
       .getAircraftData({ from: this.startDate })
       .then((data) => {
         this.logger.info(`Repeating ${data.length} items from ${this.startDate.toISOString()}`);
