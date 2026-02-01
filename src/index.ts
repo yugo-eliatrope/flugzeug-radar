@@ -37,7 +37,7 @@ const startUp = async () => {
   const spotNames = await database.getAllSpotNames();
   const eventBus = new EventBus();
   const savingToDB = !repeatParam;
-  const authService = new AuthentificationService(database, config.server.authPassword);
+  const authService = new AuthentificationService(database, config.auth.password);
 
   logger.info(savingToDB ? 'New data will be added to DB' : 'No data is being added to DB');
   logger.info(config.spot.name ? `Spot name set to "${config.spot.name}"` : 'No spot name configured');
@@ -45,7 +45,7 @@ const startUp = async () => {
   const statisticsService = new StatisticsService(spotNames, config.statistics, logger.child('StatisticsService'));
 
   const httpServer = new HttpServer(
-    { port: config.server.port },
+    config.server,
     logger.child('HTTPServer'),
     authService,
     database,

@@ -1,4 +1,5 @@
 import net from 'node:net';
+import readline from 'node:readline';
 
 import { EventBus } from './event-bus';
 import { ILogger } from './logger';
@@ -12,6 +13,7 @@ export class SBSClient {
   private host: string;
   private port: number;
   private socket?: net.Socket;
+  private rl?: readline.Interface;
 
   constructor(
     options: SBSClientOptions,
@@ -27,27 +29,37 @@ export class SBSClient {
       this.logger.info(`Connected to ${this.host}:${this.port}`);
     });
 
-    let buffer = '';
+    this.rl = readline.createInterface({
+      input: this.socket,
+      terminal: false
+    });
 
-    this.socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+    let i = 0;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          this.eventBus.emit('readsb:data', trimmed);
-        }
+    setInterval(() => {
+      this.logger.info(`Processed ${i} SBS lines for 1 second`);
+      i = 0;
+    }, 1_000);
+
+    this.rl.on('line', (line) => {
+      const trimmed = line.trim();
+      if (trimmed) {
+        this.eventBus.emit('readsb:data', trimmed);
       }
+      i++;
     });
 
     this.socket.on('end', () => this.logger.info('Stream closed'));
-    this.socket.on('error', (err) => this.logger.error(err));
+
+    this.socket.on('error', (err) => {
+        this.logger.error(err);
+        this.stop();
+    });
   }
 
   stop() {
     if (!this.socket) return;
+    this.rl?.close();
     this.socket.end();
     this.socket.destroy();
     this.logger.info('SBS client stopped');

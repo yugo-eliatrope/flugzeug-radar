@@ -16,7 +16,6 @@ export class AircraftState {
     if (!msg.icao) return;
     const prev = this.map.get(msg.icao);
     if (prev) {
-      // this.logger.info(`Updating aircraft data for ICAO: ${msg.icao}`);
       const updated = this.apply(prev, msg);
       this.map.set(msg.icao, updated);
       this.eventBus.emit('state:updated', updated);
