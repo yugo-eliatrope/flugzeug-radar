@@ -1,18 +1,27 @@
 export interface ILogger {
+  debug: (...args: unknown[]) => void;
   info: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   child: (scope: string) => ILogger;
 }
 
 export class Logger implements ILogger {
+  static logLevel: 'debug' | 'info' = 'info';
+
   constructor(private readonly scope?: string) {}
+
+  public debug = (...args: unknown[]) => {
+    if (Logger.logLevel === 'debug') {
+      this.log('DEBUG', '\x1b[90m', ...args);
+    }
+  };
 
   public info = (...args: unknown[]) => {
     this.log('INFO ', '', ...args);
   };
 
   public error = (...args: unknown[]) => {
-    this.log('ERROR', '\x1b[31m', ...args);
+    this.log('ERROR', '\x1b[41m', ...args);
   };
 
   public child = (scope: string): ILogger => {

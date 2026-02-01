@@ -34,12 +34,20 @@ export class SBSClient {
       terminal: false
     });
 
+    let i = 0;
+
     this.rl.on('line', (line) => {
       const trimmed = line.trim();
       if (trimmed) {
         this.eventBus.emit('readsb:data', trimmed);
       }
+      i++;
     });
+
+    setInterval(() => {
+      this.logger.debug(`Processed ${i.toLocaleString()} SBS lines in 10 second`);
+      i = 0;
+    }, 10_000);
 
     this.socket.on('end', () => this.logger.info('Stream closed'));
 

@@ -53,4 +53,5 @@ export const config = {
     lon: getEnvVarAsFloat('SPOT_LON'),
   },
   aircraftDataSaveIntervalMs: getEnvVarAsInt('AIRCRAFT_DATA_SAVE_INTERVAL_MS'),
+  logLevel: process.env['LOG_LEVEL'] || null,
 } as const;

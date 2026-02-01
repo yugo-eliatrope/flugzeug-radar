@@ -32,6 +32,10 @@ const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => a
 const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
   const logger = new Logger();
+  if (config.logLevel === 'debug') {
+    Logger.logLevel = 'debug';
+    logger.debug('Log level set to DEBUG');
+  }
   const database = new DatabaseService(logger.child('Database'));
   await database.connect();
   const spotNames = await database.getAllSpotNames();
