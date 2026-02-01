@@ -8,6 +8,7 @@ import { Logger } from './logger';
 import { parseSBSLine } from './parser';
 import { AuthentificationService } from './services/authentification';
 import { DatabaseService } from './services/database';
+import { MonitoringService } from './services/monitoring';
 import { SBSService } from './services/sbs';
 import { StatisticsService } from './services/statistics';
 import { AircraftState } from './state';
@@ -32,9 +33,12 @@ const recordsAreNotEqual = (a: UnsavedAircraftData, b: UnsavedAircraftData) => a
 const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
   const logger = new Logger();
+  let monitoringService: MonitoringService | null = null;
   if (config.logLevel === 'debug') {
     Logger.logLevel = 'debug';
     logger.debug('Log level set to DEBUG');
+    monitoringService = new MonitoringService(logger.child('MonitoringService'));
+    monitoringService.runDiagnostics();
   }
   const database = new DatabaseService(logger.child('Database'));
   await database.connect();
@@ -125,6 +129,7 @@ const startUp = async () => {
   const shutdown = async () => {
     logger.info('Shutting down...');
     clearInterval(interval);
+    monitoringService?.stopDiagnostics();
     eventBus.off('readsb:data', onReadsbData);
     eventBus.off('repeater:data', onRepeaterData);
     eventBus.off('state:updated', onStateUpdated);
