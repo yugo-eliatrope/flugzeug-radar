@@ -18,7 +18,7 @@ export class MonitoringService {
         avg: (this.histogram.mean / 1e6).toFixed(2),
         p99: (this.histogram.percentile(99) / 1e6).toFixed(2),
       };
-      this.logger.info(`EventLoop Lag: avg ${lag.avg}ms, max ${lag.max}ms, p99 ${lag.p99}ms`);
+      this.logger.debug(`Event Loop Lag: avg ${lag.avg}ms, max ${lag.max}ms, p99 ${lag.p99}ms`);
       this.histogram.reset();
     }, 10000);
   }

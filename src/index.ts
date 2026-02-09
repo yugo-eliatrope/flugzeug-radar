@@ -34,9 +34,9 @@ const startUp = async () => {
   const repeatParam = parseRepeatParam(process.argv);
   const logger = new Logger();
   let monitoringService: MonitoringService | null = null;
-  if (config.logLevel === 'debug') {
+  if (config.inDebugMode) {
     Logger.logLevel = 'debug';
-    logger.debug('Log level set to DEBUG');
+    logger.debug('App started in DEBUG mode');
     monitoringService = new MonitoringService(logger.child('MonitoringService'));
     monitoringService.runDiagnostics();
   }
@@ -78,8 +78,6 @@ const startUp = async () => {
     wsServer.broadcastMessage({ type: 'aircrafts', payload: state.getAll() });
     state.cleanup();
   }, 500);
-
-  interval.unref();
 
   const onReadsbData = (line: string) => {
     const parsed = parseSBSLine(line);
